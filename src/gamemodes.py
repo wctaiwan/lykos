@@ -722,25 +722,25 @@ class TotemFireMode(GameMode):
     def __init__(self, arg=""):
         self.ABSTAIN_ENABLED = False
         super().__init__(arg)
-        self.DEFAULT_ROLE = "crazed shaman"
-        self.DEFAULT_SEEN_AS_VILL = False
-        self.ROLE_INDEX =         (   6   ,   8   ,  10   ,  12   ,  15   ,  18   ,  21   ,  24   )
-        # Wolf role percentage    :  17%     13%     20%     17%     20%     22%     19%     21%
-        # Safe role percentage    :  17%     13%     20%     25%     20%     17%     14%     17%
-        # CS role percentage      :  50%     63%     50%     50%     53%     56%     62%     58%
-        # Mayor role percentage   :  17%     13%     20%     17%     20%     17%     19%     17%
+        self.DEFAULT_ROLE = "villager"
+        self.ROLE_INDEX =         (   6   ,  10   ,  12   ,  15   ,  18   ,  21   ,  24   )
+        # Wolf role percentage    :  17%     20%     17%     20%     22%     19%     21%
+        # Safe role percentage    :  17%     20%     25%     20%     17%     14%     17%
+        # CS role percentage      :  50%     50%     50%     53%     56%     62%     58%
+        # Mayor role percentage   :  17%     20%     17%     20%     17%     19%     17%
         self.ROLE_GUIDE = reset_roles(self.ROLE_INDEX)
         self.ROLE_GUIDE.update({# village roles
-              "shaman"          : (   0   ,   0   ,   1   ,   2   ,   2   ,   2   ,   2   ,   3   ),
-              "hunter"          : (   1   ,   1   ,   1   ,   1   ,   1   ,   1   ,   1   ,   1   ),
+              "shaman"          : (   0   ,   1   ,   2   ,   2   ,   2   ,   2   ,   3   ),
+              "hunter"          : (   1   ,   1   ,   1   ,   1   ,   1   ,   1   ,   1   ),
               # wolf roles
-              "wolf"            : (   1   ,   1   ,   1   ,   1   ,   2   ,   2   ,   2   ,   2   ),
-              "hag"             : (   0   ,   0   ,   1   ,   1   ,   1   ,   1   ,   1   ,   1   ),
-              "minion"          : (   0   ,   0   ,   0   ,   0   ,   0   ,   1   ,   1   ,   2   ),
+              "wolf"            : (   1   ,   1   ,   1   ,   2   ,   2   ,   2   ,   2   ),
+              "hag"             : (   0   ,   1   ,   1   ,   1   ,   1   ,   1   ,   1   ),
+              "minion"          : (   0   ,   0   ,   0   ,   0   ,   1   ,   1   ,   2   ),
               # neutral roles
-              "amnesiac"        : (   1   ,   1   ,   1   ,   1   ,   1   ,   1   ,   1   ,   1   ),
+              "amnesiac"        : (   1   ,   1   ,   1   ,   1   ,   1   ,   1   ,   1   ),
+              "crazed shaman"   : (   3   ,   5   ,   6   ,   8   ,  10   ,  13   ,  14   ),
               # templates
-              "mayor"           : (   1   ,   1   ,   2   ,   2   ,   3   ,   3   ,   4   ,   4   ),
+              "mayor"           : (   1   ,   2   ,   2   ,   3   ,   3   ,   4   ,   4   ),
               })
         self.TOTEM_CHANCES = { #  shaman , crazed
                         "death": (   1   ,   1   ),
