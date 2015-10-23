@@ -715,3 +715,76 @@ class CharmingMode(GameMode):
               "mayor"           : (  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  1  ,  1  ,  1  ,  1  ,  1  ,  1  ),
               "assassin"        : (  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  0  ,  1  ,  1  ,  1  ,  1  ,  1  ),
               })
+
+@game_mode("totemfire", minp = 6, maxp = 24, likelihood = 1)
+class TotemFireMode(GameMode):
+    """Game mode designed for maximum T"""
+    def __init__(self, arg=""):
+        self.ABSTAIN_ENABLED = False
+        super().__init__(arg)
+        self.DEFAULT_ROLE = "crazed shaman"
+        self.DEFAULT_SEEN_AS_VILL = False
+        self.ROLE_INDEX =         (   6   ,   8   ,  10   ,  12   ,  15   ,  18   ,  21   ,  24   )
+        # Wolf role percentage    :  17%     13%     20%     17%     20%     22%     19%     21%
+        # Safe role percentage    :  17%     13%     20%     25%     20%     17%     14%     17%
+        # CS role percentage      :  50%     63%     50%     50%     53%     56%     62%     58%
+        # Mayor role percentage   :  17%     13%     20%     17%     20%     17%     19%     17%
+        self.ROLE_GUIDE = reset_roles(self.ROLE_INDEX)
+        self.ROLE_GUIDE.update({# village roles
+              "shaman"          : (   0   ,   0   ,   1   ,   2   ,   2   ,   2   ,   2   ,   3   ),
+              "hunter"          : (   1   ,   1   ,   1   ,   1   ,   1   ,   1   ,   1   ,   1   ),
+              # wolf roles
+              "wolf"            : (   1   ,   1   ,   1   ,   1   ,   2   ,   2   ,   2   ,   2   ),
+              "hag"             : (   0   ,   0   ,   1   ,   1   ,   1   ,   1   ,   1   ,   1   ),
+              "minion"          : (   0   ,   0   ,   0   ,   0   ,   0   ,   1   ,   1   ,   2   ),
+              # neutral roles
+              "amnesiac"        : (   1   ,   1   ,   1   ,   1   ,   1   ,   1   ,   1   ,   1   ),
+              # templates
+              "mayor"           : (   1   ,   1   ,   2   ,   2   ,   3   ,   3   ,   4   ,   4   ),
+              })
+        self.TOTEM_CHANCES = { #  shaman , crazed
+                        "death": (   1   ,   1   ),
+                   "protection": (   1   ,   1   ),
+                      "silence": (   1   ,   1   ),
+                    "revealing": (   1   ,   1   ),
+                  "desperation": (   1   ,   1   ),
+                   "impatience": (   1   ,   1   ),
+                     "pacifism": (   1   ,   1   ),
+                    "influence": (   1   ,   1   ),
+                   "narcolepsy": (   1   ,   1   ),
+                     "exchange": (   1   ,   1   ),
+                  "lycanthropy": (   1   ,   1   ),
+                         "luck": (   1   ,   1   ),
+                   "pestilence": (   1   ,   1   ),
+                  "retribution": (   1   ,   1   ),
+                 "misdirection": (   1   ,   1   ),
+                             }
+
+    def startup(self):
+        events.add_listener("chk_win", self.chk_win)
+
+    def teardown(self):
+        events.remove_listener("chk_win", self.chk_win)
+
+    def chk_win(self, evt, var, lpl, lwolves, lrealwolves):
+        lsafes = len(var.list_players(["oracle", "seer", "guardian angel", "shaman", "hunter", "villager"]))
+        evt.stop_processing = True
+
+        if lrealwolves == 0 and lsafes == 0:
+            evt.data["winner"] = "none"
+            evt.data["message"] = ("Game over! There are no players remaining. Nobody wins.")
+        elif lrealwolves == 0:
+            evt.data["winner"] = "villagers"
+            evt.data["message"] = ("Game over! All the wolves are dead! The villagers " +
+                                   "chop them up, BBQ them, and have a hearty meal.")
+        elif lsafes == 0:
+            evt.data["winner"] = "wolves"
+            evt.data["message"] = ("Game over! All the villagers are dead! The crazed shamans rejoice " +
+                                   "with their wolf buddies and start plotting to take over the " +
+                                   "next village.")
+        else:
+            try:
+                if evt.data["winner"][0] != "@":
+                    evt.data["winner"] = None
+            except TypeError:
+                evt.data["winner"] = None
