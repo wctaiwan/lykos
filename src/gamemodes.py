@@ -723,24 +723,24 @@ class TotemFireMode(GameMode):
         self.ABSTAIN_ENABLED = False
         super().__init__(arg)
         self.DEFAULT_ROLE = "villager"
-        self.ROLE_INDEX =         (   6   ,  10   ,  12   ,  15   ,  18   ,  21   ,  24   )
+        self.STATS_TYPE = "accurate"
+        self.ROLE_INDEX =         (   6   ,   8   ,  10   ,  12   ,  15   ,  18   ,  21   ,  24   )
+        # PERCENTAGES NEED UPDATING
         # Wolf role percentage    :  17%     20%     17%     20%     22%     19%     21%
         # Safe role percentage    :  17%     20%     25%     20%     17%     14%     17%
         # CS role percentage      :  50%     50%     50%     53%     56%     62%     58%
         # Mayor role percentage   :  17%     20%     17%     20%     17%     19%     17%
         self.ROLE_GUIDE = reset_roles(self.ROLE_INDEX)
         self.ROLE_GUIDE.update({# village roles
-              "shaman"          : (   0   ,   1   ,   2   ,   2   ,   2   ,   2   ,   3   ),
-              "hunter"          : (   1   ,   1   ,   1   ,   1   ,   1   ,   1   ,   1   ),
+              "oracle"          : (   0   ,   1   ,   1   ,   1   ,   1   ,   1   ,   1   ,   1   ),
+              "shaman"          : (   0   ,   0   ,   1   ,   2   ,   2   ,   2   ,   2   ,   3   ),
+              "hunter"          : (   1   ,   1   ,   1   ,   1   ,   1   ,   1   ,   1   ,   1   ),
               # wolf roles
-              "wolf"            : (   1   ,   1   ,   1   ,   2   ,   2   ,   2   ,   2   ),
-              "hag"             : (   0   ,   1   ,   1   ,   1   ,   1   ,   1   ,   1   ),
-              "minion"          : (   0   ,   0   ,   0   ,   0   ,   1   ,   1   ,   2   ),
-              # neutral roles
-              "amnesiac"        : (   1   ,   1   ,   1   ,   1   ,   1   ,   1   ,   1   ),
-              "crazed shaman"   : (   3   ,   5   ,   6   ,   8   ,  10   ,  13   ,  14   ),
+              "wolf"            : (   1   ,   1   ,   1   ,   1   ,   2   ,   2   ,   2   ,   2   ),
+              "hag"             : (   0   ,   0   ,   1   ,   1   ,   1   ,   1   ,   1   ,   1   ),
+              "minion"          : (   0   ,   0   ,   0   ,   0   ,   0   ,   1   ,   1   ,   2   ),
               # templates
-              "mayor"           : (   1   ,   2   ,   2   ,   3   ,   3   ,   4   ,   4   ),
+              "mayor"           : (   1   ,   1   ,   2   ,   2   ,   3   ,   3   ,   4   ,   4   ),
               })
         self.TOTEM_CHANCES = { #  shaman , crazed
                         "death": (   1   ,   1   ),
@@ -761,10 +761,33 @@ class TotemFireMode(GameMode):
                              }
 
     def startup(self):
+        events.add_listener("role_attribution", self.role_attribution)
         events.add_listener("chk_win", self.chk_win)
 
     def teardown(self):
+        events.remove_listener("role_attribution", self.role_attribution)
         events.remove_listener("chk_win", self.chk_win)
+
+    def role_attribution(self, evt, cli, chk_win_conditions, var, villagers):
+        def get_role_guide(role, lpl):
+            try:
+                return var.ROLE_GUIDE[role][var.ROLE_INDEX.index(lpl)]
+            except ValueError:
+                return get_role_guide(role, lpl - 1)
+
+        lpl = len(villagers)
+
+        if lpl < var.ROLE_INDEX[0]:
+            return
+
+        specials = 0
+        for role in var.ROLE_GUIDE:
+            if role not in var.TEMPLATE_RESTRICTIONS:
+                specials += get_role_guide(role, lpl)
+        print(specials)
+        vills = lpl - specials
+        print(vills)
+        evt.data["addroles"]["crazed shaman"] = vills
 
     def chk_win(self, evt, var, lpl, lwolves, lrealwolves):
         lsafes = len(var.list_players(["oracle", "seer", "guardian angel", "shaman", "hunter", "villager"]))
@@ -778,6 +801,7 @@ class TotemFireMode(GameMode):
             evt.data["message"] = ("Game over! All the wolves are dead! The villagers " +
                                    "chop them up, BBQ them, and have a hearty meal.")
         elif lsafes == 0:
+
             evt.data["winner"] = "wolves"
             evt.data["message"] = ("Game over! All the villagers are dead! The crazed shamans rejoice " +
                                    "with their wolf buddies and start plotting to take over the " +
