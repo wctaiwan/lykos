@@ -2,14 +2,31 @@ import re
 import fnmatch
 import itertools
 
+from typing import *
+
 import botconfig
 import src.settings as var
 from src import proxy, debuglog
 from src.events import Event
 from src.messages import messages
 
+# the following import is only needed for type hints
+from oyoyo.client import IRCClient
+
+RolesIterable = Union[Frozenset[str], Tuple[str]]
+Nickname = TypeVar("Nickname", None, str)
+
+__all__ = ["pm", "is_fake_nick", "mass_mode", "mass_privmsg", "reply",
+           "is_user_simple", "is_user_notice", "in_wolflist",
+           "relay_wolfchat_command", "chk_nightdone", "chk_decision",
+           "chk_win", "irc_lower", "irc_equals", "is_role", "match_hostmask",
+           "is_owner", "is_admin", "plural", "singular", "list_players",
+           "list_players_and_roles", "get_role", "get_reveal_role",
+           "get_templates", "role_order", "break_long_messages",
+           "InvalidModeException"]
+
 # message either privmsg or notice, depending on user settings
-def pm(cli, target, message):
+def pm(cli: IRCClient, target: str, message: str) -> None:
     if is_fake_nick(target) and botconfig.DEBUG_MODE:
         debuglog("Would message fake nick {0}: {1!r}".format(target, message))
         return
@@ -22,7 +39,7 @@ def pm(cli, target, message):
 
 is_fake_nick = re.compile(r"^[0-9]+$").search
 
-def mass_mode(cli, md_param, md_plain):
+def mass_mode(cli: IRCClient, md_param: List[Tuple[str, str]], md_plain: List[str]) -> None:
     """ Example: mass_mode(cli, [('+v', 'asdf'), ('-v','wobosd')], ['-m']) """
     lmd = len(md_param)  # store how many mode changes to do
     if md_param:
@@ -38,9 +55,9 @@ def mass_mode(cli, md_param, md_plain):
             arg2 = " ".join(z[1])  # + " " + " ".join([x+"!*@*" for x in z[1]])
             cli.mode(botconfig.CHANNEL, arg1, arg2)
     elif md_plain:
-            cli.mode(botconfig.CHANNEL, "".join(md_plain))
+        cli.mode(botconfig.CHANNEL, "".join(md_plain))
 
-def mass_privmsg(cli, targets, msg, notice=False, privmsg=False):
+def mass_privmsg(cli: IRCClient, targets: List[str], msg: str, notice: bool=False, privmsg: bool=False) -> None:
     if not targets:
         return
     if not notice and not privmsg:
@@ -83,7 +100,7 @@ def mass_privmsg(cli, targets, msg, notice=False, privmsg=False):
                 cli.msg(bgs, msg)
 
 # Decide how to reply to a user, depending on the channel / query it was called in, and whether a game is running and they are playing
-def reply(cli, nick, chan, msg, private=False, prefix_nick=False):
+def reply(cli: IRCClient, nick: str, chan: str, msg: str, private: bool=False, prefix_nick: bool=False) -> None:
     if chan == nick:
         pm(cli, nick, msg)
     elif private or (nick not in list_players() and var.PHASE in var.GAME_PHASES and chan == botconfig.CHANNEL):
@@ -94,7 +111,7 @@ def reply(cli, nick, chan, msg, private=False, prefix_nick=False):
         else:
             cli.msg(chan, msg)
 
-def is_user_simple(nick):
+def is_user_simple(nick: str) -> bool:
     if nick in var.USERS:
         ident = irc_lower(var.USERS[nick]["ident"])
         host = var.USERS[nick]["host"].lower()
@@ -111,7 +128,7 @@ def is_user_simple(nick):
                 return True
     return False
 
-def is_user_notice(nick):
+def is_user_notice(nick: str) -> bool:
     if nick in var.USERS and var.USERS[nick]["account"] and var.USERS[nick]["account"] != "*" and not var.DISABLE_ACCOUNTS:
         if irc_lower(var.USERS[nick]["account"]) in var.PREFER_NOTICE_ACCS:
             return True
@@ -123,7 +140,7 @@ def is_user_notice(nick):
                 return True
     return False
 
-def in_wolflist(nick, who):
+def in_wolflist(nick: str, who: str) -> bool:
     myrole = get_role(nick)
     role = get_role(who)
     wolves = var.WOLFCHAT_ROLES
@@ -134,7 +151,7 @@ def in_wolflist(nick, who):
             wolves = var.WOLF_ROLES | {"traitor"}
     return myrole in wolves and role in wolves
 
-def relay_wolfchat_command(cli, nick, message, roles, is_wolf_command=False, is_kill_command=False):
+def relay_wolfchat_command(cli: IRCClient, nick: str, message: str, roles: RolesIterable, is_wolf_command: bool=False, is_kill_command: bool=False) -> None:
     if not is_wolf_command and var.RESTRICT_WOLFCHAT & var.RW_NO_INTERACTION:
         return
     if not is_kill_command and var.RESTRICT_WOLFCHAT & var.RW_ONLY_KILL_CMD:
@@ -162,19 +179,22 @@ def relay_wolfchat_command(cli, nick, message, roles, is_wolf_command=False, is_
     mass_privmsg(cli, wcwolves, message)
     mass_privmsg(cli, var.SPECTATING_WOLFCHAT, "[wolfchat] " + message)
 
+# The following functions are going to confuse the hell out of Mypy
+# We annotate them anyway, but we should fix this later
+
 @proxy.stub
-def chk_nightdone(cli):
+def chk_nightdone(cli: IRCClient) -> None:
     pass
 
 @proxy.stub
-def chk_decision(cli, force=""):
+def chk_decision(cli: IRCClient, force: str="") -> None:
     pass
 
 @proxy.stub
-def chk_win(cli, end_game=True, winner=None):
+def chk_win(cli: IRCClient, end_game: bool=True, winner: bool=None) -> bool:
     pass
 
-def irc_lower(nick):
+def irc_lower(nick: Nickname) -> Nickname:
     if nick is None:
         return None
 
@@ -195,12 +215,12 @@ def irc_lower(nick):
 
     return nick.lower().translate(str.maketrans(mapping))
 
-def irc_equals(nick1, nick2):
+def irc_equals(nick1: Nickname, nick2: Nickname) -> bool:
     return irc_lower(nick1) == irc_lower(nick2)
 
 is_role = lambda plyr, rol: rol in var.ROLES and plyr in var.ROLES[rol]
 
-def match_hostmask(hostmask, nick, ident, host):
+def match_hostmask(hostmask: str, nick: str, ident: str, host: str) -> bool:
     # support n!u@h, u@h, or just h by itself
     matches = re.match('(?:(?:(.*?)!)?(.*?)@)?(.*)', hostmask)
 
@@ -211,7 +231,7 @@ def match_hostmask(hostmask, nick, ident, host):
 
     return False
 
-def is_owner(nick, ident=None, host=None, acc=None):
+def is_owner(nick: str, ident: Optional[str]=None, host: Optional[str]=None, acc: Optional[str]=None) -> bool:
     hosts = set(botconfig.OWNERS)
     accounts = set(botconfig.OWNERS_ACCOUNTS)
     if nick in var.USERS:
@@ -234,7 +254,7 @@ def is_owner(nick, ident=None, host=None, acc=None):
 
     return False
 
-def is_admin(nick, ident=None, host=None, acc=None):
+def is_admin(nick: str, ident: Optional[str]=None, host: Optional[str]=None, acc: Optional[str]=None):
     if nick in var.USERS:
         if not ident:
             ident = var.USERS[nick]["ident"]
@@ -267,7 +287,7 @@ def is_admin(nick, ident=None, host=None, acc=None):
 
     return True
 
-def plural(role, count=2):
+def plural(role: str, count: int=2) -> str:
     if count == 1:
         return role
     bits = role.split()
@@ -282,7 +302,7 @@ def plural(role, count=2):
                     "child": "children"}.get(bits[-1], bits[-1] + "s")
     return " ".join(bits)
 
-def singular(plural):
+def singular(plural: str) -> str:
     # converse of plural above (kinda)
     # this is used to map plural team names back to singular,
     # so we don't need to worry about stuff like possessives
@@ -295,7 +315,7 @@ def singular(plural):
     # otherwise we just added an s on the end
     return plural[:-1]
 
-def list_players(roles = None):
+def list_players(roles: Optional[RolesIterable]=None) -> List[str]:
     if roles is None:
         roles = var.ROLES.keys()
     pl = set()
@@ -306,7 +326,7 @@ def list_players(roles = None):
             pl.add(p)
     return [p for p in var.ALL_PLAYERS if p in pl]
 
-def list_players_and_roles():
+def list_players_and_roles() -> Dict[str, str]:
     plr = {}
     for x in var.ROLES.keys():
         if x in var.TEMPLATE_RESTRICTIONS.keys():
@@ -315,21 +335,20 @@ def list_players_and_roles():
             plr[p] = x
     return plr
 
-def get_role(p):
+def get_role(p: str) -> str:
     for role, pl in var.ROLES.items():
         if role in var.TEMPLATE_RESTRICTIONS.keys():
             continue # only get actual roles
         if p in pl:
             return role
 
-def get_roles(*roles):
+def get_roles(*roles: str) -> List[str]:
     all_roles = []
     for role in roles:
         all_roles.append(var.ROLES[role])
     return list(itertools.chain(*all_roles))
 
-
-def get_reveal_role(nick):
+def get_reveal_role(nick: str) -> str:
     if var.HIDDEN_TRAITOR and get_role(nick) == "traitor":
         role = var.DEFAULT_ROLE
     elif var.HIDDEN_AMNESIAC and nick in var.ORIGINAL_ROLES["amnesiac"]:
@@ -353,7 +372,7 @@ def get_reveal_role(nick):
     else:
         return "villager"
 
-def get_templates(nick):
+def get_templates(nick: str) -> List[str]:
     tpl = []
     for x in var.TEMPLATE_RESTRICTIONS.keys():
         try:
@@ -366,7 +385,7 @@ def get_templates(nick):
 
 role_order = lambda: var.ROLE_GUIDE
 
-def break_long_message(phrases, joinstr = " "):
+def break_long_message(phrases: List[str], joinstr: str=" ") -> str:
     message = []
     count = 0
     for phrase in phrases:
