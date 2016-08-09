@@ -5561,7 +5561,7 @@ def pray(cli, nick, chan, rest):
             pm(cli, nick, messages["not_enough_parameters"])
             return
         # complete this as a match with other roles (so "cursed" can match "cursed villager" for instance)
-        role, _ = complete_match(what.lower(), var.ROLE_GUIDE.keys())
+        role, _ = complete_match(what.lower(), frozenset(var.ROLE_GUIDE.keys()))
         if role is None:
             # typo, let them fix it
             pm(cli, nick, messages["specific_invalid_role"].format(what))
@@ -7882,7 +7882,7 @@ def listroles(cli, nick, chan, rest):
     elif rest[0] and not rest[0].isdigit():
         gamemode = rest[0]
         if gamemode not in var.GAME_MODES.keys():
-            gamemode, _ = complete_match(rest[0], var.GAME_MODES.keys() - ["roles", "villagergame"] - var.DISABLED_GAMEMODES)
+            gamemode, _ = complete_match(rest[0], var.GAME_MODES.keys() - {"roles", "villagergame"} - var.DISABLED_GAMEMODES)
         validMode = gamemode in var.GAME_MODES.keys() and gamemode != "roles" and gamemode != "villagergame" and gamemode not in var.DISABLED_GAMEMODES
         if validMode and hasattr(var.GAME_MODES[gamemode][0](), "ROLE_GUIDE"):
             mode = var.GAME_MODES[gamemode][0]()
@@ -8104,7 +8104,7 @@ def game_stats(cli, nick, chan, rest):
     if len(rest) and not rest[0].isdigit():
         gamemode = rest[0]
         if gamemode not in var.GAME_MODES.keys():
-            gamemode, _ = complete_match(gamemode, var.GAME_MODES.keys())
+            gamemode, _ = complete_match(gamemode, frozenset(var.GAME_MODES.keys()))
         if not gamemode:
             cli.notice(nick, messages["invalid_mode_no_list"].format(rest[0]))
             return
@@ -8174,7 +8174,7 @@ def player_stats(cli, nick, chan, rest):
     else:
         role = " ".join(params[1:])
         if role not in var.ROLE_GUIDE.keys():
-            match, _ = complete_match(role, var.ROLE_GUIDE.keys() | ["lover"])
+            match, _ = complete_match(role, var.ROLE_GUIDE.keys() | {"lover"})
             if not match:
                 reply(cli, nick, chan, messages["no_such_role"].format(role))
                 return
@@ -8196,7 +8196,7 @@ def vote_gamemode(cli, nick, chan, gamemode, doreply):
         return
 
     if gamemode not in var.GAME_MODES.keys():
-        match, _ = complete_match(gamemode, var.GAME_MODES.keys() - ["roles", "villagergame"] - var.DISABLED_GAMEMODES)
+        match, _ = complete_match(gamemode, var.GAME_MODES.keys() - {"roles", "villagergame"} - var.DISABLED_GAMEMODES)
         if not match:
             if doreply:
                 cli.notice(nick, messages["invalid_mode_no_list"].format(gamemode))

@@ -2,7 +2,7 @@ import re
 import fnmatch
 import itertools
 
-from typing import *
+from typing import Union, FrozenSet, Set, Tuple, List, TypeVar, Optional, Dict
 
 import botconfig
 import src.settings as var
@@ -13,7 +13,7 @@ from src.messages import messages
 # the following import is only needed for type hints
 from oyoyo.client import IRCClient
 
-RolesIterable = Union[Frozenset[str], Tuple[str]]
+RolesIterable = Union[FrozenSet[str], Set[str], Tuple[str], List[str]]
 Nickname = TypeVar("Nickname", None, str)
 
 __all__ = ["pm", "is_fake_nick", "mass_mode", "mass_privmsg", "reply",
@@ -22,8 +22,8 @@ __all__ = ["pm", "is_fake_nick", "mass_mode", "mass_privmsg", "reply",
            "chk_win", "irc_lower", "irc_equals", "is_role", "match_hostmask",
            "is_owner", "is_admin", "plural", "singular", "list_players",
            "list_players_and_roles", "get_role", "get_reveal_role",
-           "get_templates", "role_order", "break_long_messages",
-           "InvalidModeException"]
+           "get_templates", "role_order", "break_long_message",
+           "complete_match", "get_victim", "get_nick", "InvalidModeException"]
 
 # message either privmsg or notice, depending on user settings
 def pm(cli: IRCClient, target: str, message: str) -> None:
@@ -402,7 +402,7 @@ def break_long_message(phrases: List[str], joinstr: str=" ") -> str:
     return joinstr.join(message)
 
 #completes a partial nickname or string from a list
-def complete_match(string, matches):
+def complete_match(string: str, matches: RolesIterable):
     num_matches = 0
     bestmatch = string
     for possible in matches:
@@ -417,7 +417,7 @@ def complete_match(string, matches):
         return bestmatch, 1
 
 #wrapper around complete_match() used for roles
-def get_victim(cli, nick, victim, in_chan, self_in_list=False, bot_in_list=False):
+def get_victim(cli: IRCClient, nick: str, victim: str, in_chan: bool, self_in_list: bool=False, bot_in_list: bool=False) -> Optional[str]:
     chan = botconfig.CHANNEL if in_chan else nick
     if not victim:
         reply(cli, nick, chan, messages["not_enough_parameters"], private=True)
@@ -439,7 +439,7 @@ def get_victim(cli, nick, victim, in_chan, self_in_list=False, bot_in_list=False
     return pl[pll.index(tempvictim)] #convert back to normal casing
 
 # wrapper around complete_match() used for any nick on the channel
-def get_nick(cli, nick):
+def get_nick(cli: IRCClient, nick: str) -> Optional[str]:
     ul = [x for x in var.USERS]
     ull = [x.lower() for x in var.USERS]
     lnick, num_matches = complete_match(nick.lower(), ull)
