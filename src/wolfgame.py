@@ -7144,9 +7144,32 @@ def aftergame(cli, rawnick, chan, rest):
         fullcmd += " "
         fullcmd += " ".join(rst)
 
-    cli.msg(botconfig.CHANNEL, messages["command_scheduled"].format(fullcmd, nick))
-    var.AFTER_FLASTGAME = do_action
+    if cmd == "fdie":
+        cli.msg(botconfig.CHANNEL, messages["shutdown_restart_scheduled"].format(**{
+            "action": messages["shutdown_scheduled_text"],
+            "mode": "",
+            "nick": nick,
+            "reason": messages["shutdown_restart_scheduled_reason"].format(" ".join(rst)) if rst else ""
+        }))
+    elif cmd == "frestart":
+        restart_mode = None
 
+        if rst and rst[0] in ("normalmode", "verbosemode", "debugmode"):
+            restart_mode = rst[0].replace("mode", "")
+            reason = " ".join(rst[1:])
+        else:
+            reason = " ".join(rst)
+
+        cli.msg(botconfig.CHANNEL, messages["shutdown_restart_scheduled"].format(**{
+            "action": messages["restart_scheduled_text"],
+            "mode": messages["restart_scheduled_mode"].format(restart_mode) if restart_mode else "",
+            "nick": nick,
+            "reason": messages["shutdown_restart_scheduled_reason"].format(reason) if reason else ""
+        }))
+    else:
+        cli.msg(botconfig.CHANNEL, messages["command_scheduled"].format(fullcmd, nick))
+
+    var.AFTER_FLASTGAME = do_action
 
 @cmd("flastgame", flag="D", raw_nick=True, pm=True)
 def flastgame(cli, rawnick, chan, rest):
@@ -7348,10 +7371,7 @@ def fpull(cli, nick, chan, rest):
         ret = child.returncode
 
         for line in (out + err).splitlines():
-            if chan == nick:
-                cli.msg(nick, line.decode("utf-8"))
-            else:
-                pm(cli, nick, line.decode("utf-8"))
+            reply(cli, nick, chan, line.decode("utf-8"), private=True)
 
         if ret != 0:
             if ret < 0:
@@ -7364,6 +7384,9 @@ def fpull(cli, nick, chan, rest):
                 cli.msg(nick, messages["process_exited"] % (command, cause, ret))
             else:
                 pm(cli, nick, messages["process_exited"] % (command, cause, ret))
+
+    if rest == "-restart":
+        aftergame.func(cli, nick, chan, "Updating bot")
 
 @cmd("fsend", flag="F", pm=True)
 def fsend(cli, nick, chan, rest):
