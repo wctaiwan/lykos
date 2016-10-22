@@ -54,6 +54,9 @@ def connect_callback(cli):
     def prepare_stuff(cli, prefix, *args):
         alog("Received end of MOTD from {0}".format(prefix))
 
+        user.Bot = user.User(botconfig.NICK, None, None, None, None, {})
+        user.Bot.modes = set() # only for the bot (user modes)
+
         # just in case we haven't managed to successfully auth yet
         if not botconfig.SASL_AUTHENTICATION:
             cli.ns_identify(botconfig.USERNAME or botconfig.NICK,
@@ -61,25 +64,44 @@ def connect_callback(cli):
                             nickserv=var.NICKSERV,
                             command=var.NICKSERV_IDENTIFY_COMMAND)
 
-        channels = {botconfig.CHANNEL}
+        cli.encoding = hooks.Features["CHARSET"] # inject the encoding in the client
+
+        channel.Main = channel.add(botconfig.CHANNEL, cli)
 
         if botconfig.ALT_CHANNELS:
-            channels.update(botconfig.ALT_CHANNELS.split(","))
+            alt_chans = botconfig.ALT_CHANNELS
+            if isinstance(alt_chans, str):
+                alt_chans = alt_chans.replace(",", " ").split()
+            for chan in alt_chans:
+                channel.add(chan, cli)
 
         if botconfig.DEV_CHANNEL:
-            channels.update(chan.lstrip("".join(var.STATUSMSG_PREFIXES)) for chan in botconfig.DEV_CHANNEL.split(","))
+            dev_chans = botconfig.DEV_CHANNEL
+            if isinstance(dev_chans, str):
+                dev_chans = dev_chans.replace(",", " ").split()
+            for chan in dev_chans:
+                channel.add(chan, cli)
 
         if var.LOG_CHANNEL:
-            channels.add(var.LOG_CHANNEL.lstrip("".join(var.STATUSMSG_PREFIXES)))
+            channel.add(var.LOG_CHANNEL, cli)
 
-        cli.join(",".join(channels))
+        if var.CHANSERV:
+            hooks.who(cli, var.CHANSERV)
+        if var.NICKSERV:
+            hooks.who(cli, var.NICKSERV)
 
-        if var.CHANSERV_OP_COMMAND:
-            cli.msg(var.CHANSERV, var.CHANSERV_OP_COMMAND.format(channel=botconfig.CHANNEL))
+        auto_toggle_modes = set(var.AUTO_TOGGLE_MODES)
+        var.AUTO_TOGGLE_MODES.clear()
+        for mode in auto_toggle_modes:
+            if mode in hooks.Features["PREFIX"]:
+                mode = hooks.Features["PREFIX"][mode]
+            if mode in hooks.Features["PREFIX"].values():
+                var.AUTO_TOGGLE_MODES.add(mode)
 
-        cli.nick(botconfig.NICK)  # very important (for regain/release)
+        cli.nick(user.Bot.nick)  # very important (for regain/release)
 
         wolfgame.connect_callback(cli)
+        hook.unhook(294)
 
     def mustregain(cli, *blah):
         if not botconfig.PASS:
@@ -90,13 +112,15 @@ def connect_callback(cli):
         if not botconfig.PASS:
             return # prevents the bot from trying to release without a password
         cli.ns_release(nickserv=var.NICKSERV, command=var.NICKSERV_RELEASE_COMMAND)
-        cli.nick(botconfig.NICK)
+        cli.nick(user.Bot.nick)
 
     @hook("unavailresource", hookid=239)
     @hook("nicknameinuse", hookid=239)
     def must_use_temp_nick(cli, *etc):
-        cli.nick(botconfig.NICK+"_")
-        cli.user(botconfig.NICK, "")
+        orig_nick = user.Bot.nick
+        user.Bot.nick += "_"
+        cli.nick(user.Bot.nick)
+        cli.user(orig_nick, "")
 
         hook.unhook(239)
         hook("unavailresource")(mustrelease)
@@ -125,7 +149,7 @@ def connect_callback(cli):
                 common_caps = request_caps & supported_caps
 
                 if common_caps:
-                    cli.cap("REQ " ":{0}".format(" ".join(common_caps)))
+                    cli.cap("REQ :{0}".format(" ".join(common_caps)))
         elif cmd == "ACK":
             if "sasl" in caps:
                 cli.send("AUTHENTICATE PLAIN")
