@@ -12,7 +12,7 @@ from src import proxy, debuglog
 from src.events import Event
 from src.messages import messages
 
-__all__ = ["pm", "is_fake_nick", "mass_mode", "mass_privmsg", "reply",
+__all__ = ["pm", "is_fake_nick", "mass_privmsg", "reply",
            "is_user_simple", "is_user_notice", "in_wolflist",
            "relay_wolfchat_command", "chk_nightdone", "chk_decision",
            "chk_win", "is_role", "plural", "singular", "list_players",
@@ -33,24 +33,6 @@ def pm(cli, target, message):
     cli.msg(target, message)
 
 is_fake_nick = re.compile(r"^[0-9]+$").search
-
-def mass_mode(cli, md_param, md_plain):
-    """ Example: mass_mode(cli, [('+v', 'asdf'), ('-v','wobosd')], ['-m']) """
-    lmd = len(md_param)  # store how many mode changes to do
-    if md_param:
-        for start_i in range(0, lmd, var.MODELIMIT):  # 4 mode-changes at a time
-            if start_i + var.MODELIMIT > lmd:  # If this is a remainder (mode-changes < 4)
-                z = list(zip(*md_param[start_i:]))  # zip this remainder
-                ei = lmd % var.MODELIMIT  # len(z)
-            else:
-                z = list(zip(*md_param[start_i:start_i+var.MODELIMIT])) # zip four
-                ei = var.MODELIMIT # len(z)
-            # Now z equal something like [('+v', '-v'), ('asdf', 'wobosd')]
-            arg1 = "".join(md_plain) + "".join(z[0])
-            arg2 = " ".join(z[1])  # + " " + " ".join([x+"!*@*" for x in z[1]])
-            cli.mode(botconfig.CHANNEL, arg1, arg2)
-    elif md_plain:
-            cli.mode(botconfig.CHANNEL, "".join(md_plain))
 
 def mass_privmsg(cli, targets, msg, notice=False, privmsg=False):
     if not targets:

@@ -63,3 +63,36 @@ class Channel(IRCContext):
         if self.state == 2:
             self.client.send("KICK {0} {1} :{2}".format(self.name, target, message))
 
+    def mode(self, *changes):
+        if not changes:
+            self.client.send("MODE", self.name)
+            return
+
+        max_modes = Features["MODES"]
+        params = []
+        for change in changes:
+            if isinstance(change, str):
+                change = (change, None)
+            params.append(change)
+        params.sort(key=lambda x: x[0][0])
+
+        while params:
+            cur, params = params[:max_modes], params[max_modes:]
+            modes, targets = zip(*cur)
+            prefix = ""
+            final = []
+            for mode in modes:
+                if mode[0] == prefix:
+                    mode = mode[1:]
+                elif mode.startswith(("+", "-")):
+                    prefix = mode[0]
+
+                final.append(mode)
+
+            for target in targets:
+                if target is not None:
+                    final.append(" ")
+                    final.append(target)
+
+            self.client.send("MODE", self.name, "".join(final))
+
