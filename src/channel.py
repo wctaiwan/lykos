@@ -96,3 +96,61 @@ class Channel(IRCContext):
 
             self.client.send("MODE", self.name, "".join(final))
 
+    def update_modes(self, rawnick, mode, targets):
+        set_time = int(time.time()) # for list modes timestamp
+        list_modes, all_set, only_set, no_set = Features["CHANMODES"]
+        status_modes = Features["PREFIX"].values()
+
+        i = 0
+        for c in mode:
+            if c in ("+", "-"):
+                prefix = c
+                continue
+
+            if prefix == "+":
+                if c in status_modes:
+                    if c not in self.modes:
+                        self.modes[c] = set()
+                    val = user.get(targets[i], allow_bot=True)
+                    self.modes[c].add(val)
+                    val.channels[self].add(c)
+                    i += 1
+
+                elif c in list_modes:
+                    if c not in self.modes:
+                        self.modes[c] = {}
+                    self.modes[c][targets[i]] = (rawnick, set_time)
+                    i += 1
+
+                else:
+                    if c in no_set:
+                        targ = None
+                    else:
+                        targ = targets[i]
+                        i += 1
+                    if c in only_set and targ.isdigit(): # +l/+j
+                        targ = int(targ)
+                    self.modes[c] = targ
+
+            else:
+                if c in status_modes:
+                    if c in self.modes:
+                        val = user.get(targets[i], allow_bot=True)
+                        self.modes[c].discard(val)
+                        val.channels[self].discard(c)
+                        if not self.modes[c]:
+                            del self.modes[c]
+                    i += 1
+
+                elif c in list_modes:
+                    if c in self.modes:
+                        self.modes[c].pop(targets[i], None)
+                        if not self.modes[c]:
+                            del self.modes[c]
+                    i += 1
+
+                else:
+                    if c in all_set:
+                        i += 1 # -k needs a target, but we don't care about it
+                    del self.modes[c]
+
