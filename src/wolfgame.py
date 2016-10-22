@@ -46,7 +46,7 @@ import botconfig
 import src
 import src.settings as var
 from src.utilities import *
-from src import db, events, logger, proxy, debuglog, errlog, plog
+from src import db, events, hooks, logger, proxy, channel, debuglog, errlog, plog
 from src.decorators import COMMANDS, handle_error, cmd, hook, event_listener
 from src.messages import messages
 from src.warnings import *
@@ -151,113 +151,57 @@ def connect_callback(cli):
     if SIGUSR2:
         signal.signal(SIGUSR2, sighandler)
 
-    to_be_devoiced = []
-    cmodes = []
+    def who_end(event, var, request):
+        if request == channel.Main.name:
+            if not hooks.Features["WHOX"]:
+                if not var.DISABLE_ACCOUNTS:
+                    plog("IRCd does not support accounts, disabling account-related features.")
+                var.DISABLE_ACCOUNTS = True
+                var.ACCOUNTS_ONLY = False
 
-    @hook("quietlist", hookid=294)
-    def on_quietlist(cli, server, botnick, channel, q, quieted, by, something):
-        if re.search(r"^{0}.+\!\*@\*$".format(var.QUIET_PREFIX), quieted):  # only unquiet people quieted by bot
-            cmodes.append(("-{0}".format(var.QUIET_MODE), quieted))
+            # Devoice all on connect
+            prefix = "-" + hooks.Features["PREFIX"]["+"]
+            pending = []
+            for val in channel.Main.modes.get(prefix, ()):
+                pending.append((prefix, val.nick))
+            accumulator.send(pending)
+            next(accumulator, None)
 
-    @hook("banlist", hookid=294)
-    def on_banlist(cli, server, botnick, channel, ban, by, timestamp):
-        if re.search(r"^{0}.+\!\*@\*$".format(var.QUIET_PREFIX), ban):
-            cmodes.append(("-{0}".format(var.QUIET_MODE), ban))
+            # Expire tempbans
+            expire_tempbans()
 
-    @hook("whoreply", hookid=295)
-    def on_whoreply(cli, svr, botnick, chan, user, host, server, nick, status, rest):
-        if not var.DISABLE_ACCOUNTS:
-            plog("IRCd does not support accounts, disabling account-related features.")
-        var.DISABLE_ACCOUNTS = True
-        var.ACCOUNTS_ONLY = False
+            players = db.get_pre_restart_state()
+            if players:
+                msg = "PING! " + break_long_message(players).replace("\n", "\nPING! ")
+                channel.Main.send(msg)
+                channel.Main.send(messages["game_restart_cancel"])
 
-        if nick in var.USERS:
-            return
+            events.remove_listener("who_end", who_end)
 
-        if nick == botconfig.NICK:
-            cli.nickname = nick
-            cli.ident = user
-            cli.hostmask = host
+    def end_listmode(event, var, chan, mode):
+        if chan is channel.Main and mode == var.QUIET_MODE:
+            pending = []
+            for quiet in chan.modes.get(mode, ()):
+                if re.search(r"^{0}.+\!\*@\*$".format(var.QUIET_PREFIX), quiet):
+                    pending.append(("-" + mode, quiet))
+            accumulator.send(pending)
+            next(accumulator, None)
 
-        if "+" in status:
-            to_be_devoiced.append(user)
-        newstat = ""
-        for stat in status:
-            if not stat in var.MODES_PREFIXES:
-                continue
-            newstat += var.MODES_PREFIXES[stat]
-        var.USERS[nick] = dict(ident=user,host=host,account="*",inchan=True,modes=set(newstat),moded=set())
+            events.remove_listener("end_listmode", end_listmode)
 
-    @hook("whospcrpl", hookid=295)
-    def on_whoreply(cli, server, nick, ident, host, _, user, status, acc):
-        if user in var.USERS: return  # Don't add someone who is already there
-        if user == botconfig.NICK:
-            cli.nickname = user
-            cli.ident = ident
-            cli.hostmask = host
-        if acc == "0":
-            acc = "*"
-        if "+" in status:
-            to_be_devoiced.append(user)
-        newstat = ""
-        for stat in status:
-            if not stat in var.MODES_PREFIXES:
-                continue
-            newstat += var.MODES_PREFIXES[stat]
-        var.USERS[user] = dict(ident=ident,host=host,account=acc,inchan=True,modes=set(newstat),moded=set())
+    events.add_listener("who_end", who_end)
+    events.add_listener("end_listmode", end_listmode)
 
-    @hook("endofwho", hookid=295)
-    def afterwho(*args):
-        # Devoice all on connect
-        for nick in to_be_devoiced:
-            cmodes.append(("-v", nick))
+    def accumulate_cmodes():
+        list1 = yield
+        yield
+        list2 = yield
+        yield
 
-        # Expire tempbans
-        expire_tempbans(cli)
+        channel.Main.mode(*list1 + list2)
 
-        # If the bot was restarted in the middle of the join phase, ping players that were joined.
-        players = db.get_pre_restart_state()
-        if players:
-            msg = "PING! " + break_long_message(players).replace("\n", "\nPING! ")
-            cli.msg(botconfig.CHANNEL, msg)
-            cli.msg(botconfig.CHANNEL, messages["game_restart_cancel"])
-
-        # Unhook the WHO hooks
-        hook.unhook(295)
-
-
-    #bot can be tricked into thinking it's still opped by doing multiple modes at once
-    @hook("mode", hookid=296)
-    def on_give_me_ops(cli, nick, chan, modeaction, target="", *other):
-        if chan != botconfig.CHANNEL:
-            return
-        if modeaction == "+o" and target == botconfig.NICK:
-            var.OPPED = True
-            if botconfig.NICK in var.USERS:
-                var.USERS[botconfig.NICK]["modes"].add("o")
-
-            if var.PHASE == "none":
-                @hook("quietlistend", hookid=297)
-                def on_quietlist_end(cli, svr, nick, chan, *etc):
-                    if chan == botconfig.CHANNEL:
-                        mass_mode(cli, cmodes, ["-m"])
-                @hook("endofbanlist", hookid=297)
-                def on_banlist_end(cli, svr, nick, chan, *etc):
-                    if chan == botconfig.CHANNEL:
-                        mass_mode(cli, cmodes, ["-m"])
-
-                cli.mode(botconfig.CHANNEL, var.QUIET_MODE)  # unquiet all
-        elif modeaction == "-o" and target == botconfig.NICK:
-            var.OPPED = False
-            if var.CHANSERV_OP_COMMAND:
-                cli.msg(var.CHANSERV, var.CHANSERV_OP_COMMAND.format(channel=botconfig.CHANNEL))
-
-
-    if var.DISABLE_ACCOUNTS:
-        cli.who(botconfig.CHANNEL)
-    else:
-        cli.who(botconfig.CHANNEL, "%uhsnfa")
-
+    accumulator = accumulate_cmodes()
+    accumulator.send(None)
 
 def reset_settings():
     var.CURRENT_GAMEMODE.teardown()

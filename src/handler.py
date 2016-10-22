@@ -54,6 +54,9 @@ def connect_callback(cli):
     def prepare_stuff(cli, prefix, *args):
         alog("Received end of MOTD from {0}".format(prefix))
 
+        # This callback only sets up event listeners
+        wolfgame.connect_callback(cli)
+
         user.Bot = user.User(botconfig.NICK, None, None, None, None, {})
         user.Bot.modes = set() # only for the bot (user modes)
 
@@ -100,7 +103,6 @@ def connect_callback(cli):
 
         cli.nick(user.Bot.nick)  # very important (for regain/release)
 
-        wolfgame.connect_callback(cli)
         hook.unhook(294)
 
     def mustregain(cli, *blah):
