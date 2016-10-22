@@ -1,50 +1,36 @@
 import base64
 import sys
 
-from oyoyo.parse import parse_nick
-
 import botconfig
 import src.settings as var
-from src import decorators, wolfgame, errlog as log, stream_handler as alog
-from src.utilities import irc_equals
+from src import decorators, wolfgame, hooks, channel, user, stream_handler as alog
 
 hook = decorators.hook
 
-def on_privmsg(cli, rawnick, chan, msg, notice = False):
-    try:
-        prefixes = getattr(var, "STATUSMSG_PREFIXES")
-    except AttributeError:
-        pass
-    else:
-        if botconfig.IGNORE_HIDDEN_COMMANDS and chan[0] in prefixes:
-            return
+def on_privmsg(cli, rawnick, chan, msg, notice=False):
+    if notice and "!" not in rawnick or not rawnick: # server notice; we don't care about those
+        return
 
-    try:
-        getattr(var, "CASEMAPPING")
-    except AttributeError:
-        # some kind of hack for strange networks which don't put server name in some of the NOTICEs on startup
-        if not rawnick:
-            return
-        if notice and "!" not in rawnick and chan in ("*", "AUTH"):
-            # On-connect message before RPL_ISUPPORT is sent.
-            return
+    if botconfig.IGNORE_HIDDEN_COMMANDS and chan.startswith(tuple(hooks.Features["STATUSMSG"])):
+        return
 
-        log("Server did not send a case mapping; falling back to rfc1459.")
-        var.CASEMAPPING = "rfc1459"
-
-    if (notice and ((not irc_equals(chan, botconfig.NICK) and not botconfig.ALLOW_NOTICE_COMMANDS) or
-                    (irc_equals(chan, botconfig.NICK) and not botconfig.ALLOW_PRIVATE_NOTICE_COMMANDS))):
+    if (notice and ((not user.equals(chan, user.Bot.nick) and not botconfig.ALLOW_NOTICE_COMMANDS) or
+                    (user.equals(chan, user.Bot.nick) and not botconfig.ALLOW_PRIVATE_NOTICE_COMMANDS))):
         return  # not allowed in settings
 
-    if irc_equals(chan, botconfig.NICK):
-        chan = parse_nick(rawnick)[0]
+    source = user.get(rawnick, raw_nick=True)
+
+    if user.equals(chan, user.Bot.nick):
+        target = source
+    else:
+        target = channel.add(chan, cli)
 
     for fn in decorators.COMMANDS[""]:
-        fn.caller(cli, rawnick, chan, msg)
+        fn.caller(var, source, target, msg)
 
     phase = var.PHASE
     for x in list(decorators.COMMANDS.keys()):
-        if chan != parse_nick(rawnick)[0] and not msg.lower().startswith(botconfig.CMD_CHAR):
+        if source is not target and not msg.lower().startswith(botconfig.CMD_CHAR):
             break # channel message but no prefix; ignore
         if msg.lower().startswith(botconfig.CMD_CHAR+x):
             h = msg[len(x)+len(botconfig.CMD_CHAR):]
@@ -55,8 +41,7 @@ def on_privmsg(cli, rawnick, chan, msg, notice = False):
         if not h or h[0] == " ":
             for fn in decorators.COMMANDS.get(x, []):
                 if phase == var.PHASE:
-                    fn.caller(cli, rawnick, chan, h.lstrip())
-
+                    fn.caller(var, source, target, h.lstrip())
 
 def unhandled(cli, prefix, cmd, *args):
     if cmd in decorators.HOOKS:

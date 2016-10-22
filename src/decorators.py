@@ -5,12 +5,10 @@ import types
 from collections import defaultdict
 
 from oyoyo.client import IRCClient
-from oyoyo.parse import parse_nick
 
 import botconfig
-import src.settings as var
 from src.utilities import *
-from src import logger, errlog, events, channel
+from src import logger, errlog, events, channel, user
 from src.messages import messages
 
 adminlog = logger.logger("audit.log")
@@ -50,12 +48,11 @@ class handle_error:
                 pastebin_tb(chan, messages["error_log"], traceback.format_exc())
 
 class cmd:
-    def __init__(self, *cmds, raw_nick=False, flag=None, owner_only=False,
+    def __init__(self, *cmds, flag=None, owner_only=False,
                  chan=True, pm=False, playing=False, silenced=False,
-                 phases=(), roles=(), nicks=None):
+                 phases=(), roles=(), users=None):
 
         self.cmds = cmds
-        self.raw_nick = raw_nick
         self.flag = flag
         self.owner_only = owner_only
         self.chan = chan
@@ -64,7 +61,7 @@ class cmd:
         self.silenced = silenced
         self.phases = phases
         self.roles = roles
-        self.nicks = nicks # iterable of nicks that can use the command at any time (should be a mutable object)
+        self.users = users # iterable of users that can use the command at any time (should be a mutable object)
         self.func = None
         self.aftergame = False
         self.name = cmds[0]
@@ -90,28 +87,14 @@ class cmd:
         return self
 
     @handle_error
-    def caller(self, *args):
-        largs = list(args)
-
-        cli, rawnick, chan, rest = largs
-        nick, mode, ident, host = parse_nick(rawnick)
-
-        if ident is None:
-            ident = ""
-
-        if host is None:
-            host = ""
-
-        if not self.raw_nick:
-            largs[1] = nick
-
-        if not self.pm and chan == nick:
+    def caller(self, var, source, target, message):
+        if not self.pm and not target.is_user:
             return # PM command, not allowed
 
-        if not self.chan and chan != nick:
+        if not self.chan and not target.is_channel:
             return # channel command, not allowed
 
-        if chan.startswith("#") and chan != botconfig.CHANNEL and not (self.flag or self.owner_only):
+        if target.is_channel and target != channel.Main and not (self.flag or self.owner_only):
             if "" in self.cmds:
                 return # don't have empty commands triggering in other channels
             for command in self.cmds:
@@ -120,42 +103,28 @@ class cmd:
             else:
                 return
 
-        if nick not in var.USERS and not is_fake_nick(nick):
-            return
-
-        if nick in var.USERS and var.USERS[nick]["account"] != "*":
-            acc = irc_lower(var.USERS[nick]["account"])
-        else:
-            acc = None
-        ident = irc_lower(ident)
-        host = host.lower()
-        hostmask = nick + "!" + ident + "@" + host
-
         if "" in self.cmds:
-            return self.func(*largs)
+            return self.func(var, source, target, message)
 
         if self.phases and var.PHASE not in self.phases:
             return
 
-        if self.playing and (nick not in list_players() or nick in var.DISCONNECTED):
+        if self.playing and (source not in list_players() or source in var.DISCONNECTED):
             return
 
         for role in self.roles:
             if nick in var.ROLES[role]:
                 break
         else:
-            if (self.nicks is not None and nick not in self.nicks) or self.roles:
+            if (self.users is not None and source not in self.users) or self.roles:
                 return
 
-        if self.silenced and nick in var.SILENCED:
-            if chan == nick:
-                pm(cli, nick, messages["silenced"])
-            else:
-                cli.notice(nick, messages["silenced"])
+        if self.silenced and source in var.SILENCED:
+            reply(source, target, messages["silenced"])
             return
 
-        if self.roles or (self.nicks is not None and nick in self.nicks):
-            return self.func(*largs) # don't check restrictions for role commands
+        if self.roles or (self.users is not None and source in self.users):
+            return self.func(var, source, target, message) # don't check restrictions for role commands
 
         forced_owner_only = False
         if hasattr(botconfig, "OWNERS_ONLY_COMMANDS"):
@@ -167,41 +136,33 @@ class cmd:
         owner = is_owner(nick, ident, host)
         if self.owner_only or forced_owner_only:
             if owner:
-                adminlog(chan, rawnick, self.name, rest)
-                return self.func(*largs)
+                adminlog(target.name, source.rawnick, self.name, message)
+                return self.func(var, source, target, message)
 
-            if chan == nick:
-                pm(cli, nick, messages["not_owner"])
-            else:
-                cli.notice(nick, messages["not_owner"])
+            reply(source, target, messages["not_owner"])
             return
 
-        flags = var.FLAGS[hostmask] + var.FLAGS_ACCS[acc]
         admin = is_admin(nick, ident, host)
         if self.flag and (admin or owner):
-            adminlog(chan, rawnick, self.name, rest)
-            return self.func(*largs)
+        flags = var.FLAGS[source.rawnick] + var.FLAGS_ACCS[source.account]
+            adminlog(target.name, source.rawnick, self.name, message)
+            return self.func(var, source, target, message)
 
-        denied_cmds = var.DENY[hostmask] | var.DENY_ACCS[acc]
+        denied_cmds = var.DENY[source.rawnick] | var.DENY_ACCS[source.account]
         for command in self.cmds:
             if command in denied_cmds:
-                if chan == nick:
-                    pm(cli, nick, messages["invalid_permissions"])
-                else:
-                    cli.notice(nick, messages["invalid_permissions"])
+                reply(source, target, messages["invalid_permissions"])
                 return
 
         if self.flag:
             if self.flag in flags:
-                adminlog(chan, rawnick, self.name, rest)
-                return self.func(*largs)
-            elif chan == nick:
-                pm(cli, nick, messages["not_an_admin"])
-            else:
-                cli.notice(nick, messages["not_an_admin"])
+                adminlog(target.name, source.rawnick, self.name, message)
+                return self.func(var, source, target, message)
+
+            reply(source, target, messages["not_an_admin"])
             return
 
-        return self.func(*largs)
+        return self.func(var, source, target, message)
 
 class hook:
     def __init__(self, name, hookid=-1):
