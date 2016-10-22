@@ -253,3 +253,70 @@ def get_features(cli, rawnick, *features):
 
         else:
             Features[name] = None
+
+### Channel and user MODE handling
+
+@hook("channelmodeis")
+def current_modes(cli, server, bot_nick, chan, mode, *targets):
+    """Update the channel modes with the existing ones.
+
+    Ordering and meaning of arguments for a bare MODE response:
+
+    0 - The IRCClient instance (like everywhere else)
+    1 - The server the requester (i.e. the bot) is on
+    2 - The nickname of the requester (i.e. the bot)
+    3 - The channel holding the modes
+    4 - The modes of the channel
+    * - The targets to the modes (if any)
+
+    """
+
+    ch = channel.add(chan, cli)
+    ch.update_modes(server, mode, targets)
+
+@hook("channelcreate")
+def chan_created(cli, server, bot_nick, chan, timestamp):
+    """Update the channel timestamp with the server's information.
+
+    Ordering and meaning of arguments for a bare MODE response end:
+
+    0 - The IRCClient instance (like everywhere else)
+    1 - The server the requester (i.e. the bot) is on
+    2 - The nickname of the requester (i.e. the bot)
+    3 - The channel in question
+    4 - The UNIX timestamp of when the channel was created
+
+    We probably don't need to care about this at all, but it doesn't
+    hurt to keep it around. If we ever need it, it will be there.
+
+    """
+
+    channel.add(chan, cli).timestamp = int(timestamp)
+
+@hook("mode")
+def mode_change(cli, rawnick, chan, mode, *targets):
+    """Update the channel and user modes whenever a mode change occurs.
+
+    Ordering and meaning of arguments for a MODE change:
+
+    0 - The IRCClient instance (like everywhere else)
+    1 - The raw nick of the mode setter/actor
+    2 - The channel (target) of the mode change
+    3 - The mode changes
+    * - The targets of the modes (if any)
+
+    This takes care of properly updating all relevant users and the
+    channel modes to make sure we remain internally consistent.
+
+    """
+
+    actor = user.get(rawnick, allow_none=True, raw_nick=True)
+    if chan == user.Bot.nick: # we only see user modes set to ourselves
+        user.Bot.modes.update(mode)
+        return
+
+    target = channel.add(chan, cli)
+    target.update_modes(rawnick, mode, targets)
+
+    Event("mode_change", {}).dispatch(var, actor, target)
+

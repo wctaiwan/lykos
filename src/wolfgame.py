@@ -258,54 +258,6 @@ def connect_callback(cli):
     else:
         cli.who(botconfig.CHANNEL, "%uhsnfa")
 
-@hook("mode")
-def check_for_modes(cli, rnick, chan, modeaction, *target):
-    nick = parse_nick(rnick)[0]
-    if chan != botconfig.CHANNEL:
-        return
-    oldpref = ""
-    trgt = ""
-    keeptrg = False
-    target = list(target)
-    if target and target != [botconfig.NICK]:
-        while modeaction:
-            if len(modeaction) > 1:
-                prefix = modeaction[0]
-                change = modeaction[1]
-            else:
-                prefix = oldpref
-                change = modeaction[0]
-            if not keeptrg:
-                if target:
-                    trgt = target.pop(0)
-                else:
-                    trgt = "" # Last item, no target
-            keeptrg = False
-            if not prefix in ("-", "+"):
-                change = prefix
-                prefix = oldpref
-            else:
-                oldpref = prefix
-            modeaction = modeaction[modeaction.index(change)+1:]
-            if change in var.MODES_NOSET:
-                keeptrg = True
-            if prefix == "-" and change in var.MODES_ONLYSET:
-                keeptrg = True
-            if change not in var.MODES_PREFIXES.values():
-                continue
-            if trgt in var.USERS:
-                if prefix == "+":
-                    var.USERS[trgt]["modes"].add(change)
-                    if change in var.USERS[trgt]["moded"]:
-                        var.USERS[trgt]["moded"].remove(change)
-                elif change in var.USERS[trgt]["modes"]:
-                    var.USERS[trgt]["modes"].remove(change)
-    # Only sync modes if a server changed modes because
-    # 1) human ops probably know better
-    # 2) other bots might start a fight over modes
-    # 3) recursion; we see our own mode changes.
-    if "!" not in rnick:
-        sync_modes(cli)
 
 def reset_settings():
     var.CURRENT_GAMEMODE.teardown()
