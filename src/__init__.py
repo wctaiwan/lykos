@@ -4,7 +4,6 @@ import time
 
 import botconfig
 import src.settings as var
-from src import logger
 from src.logger import stream, stream_handler, debuglog, errlog, plog
 from src import db
 

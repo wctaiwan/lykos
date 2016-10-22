@@ -46,18 +46,13 @@ import botconfig
 import src
 import src.settings as var
 from src.utilities import *
-from src import db, decorators, events, logger, proxy, debuglog, errlog, plog
+from src import db, events, logger, proxy, debuglog, errlog, plog
+from src.decorators import COMMANDS, handle_error, cmd, hook, event_listener
 from src.messages import messages
 from src.warnings import *
 
 # done this way so that events is accessible in !eval (useful for debugging)
 Event = events.Event
-
-cmd = decorators.cmd
-hook = decorators.hook
-handle_error = decorators.handle_error
-event_listener = decorators.event_listener
-COMMANDS = decorators.COMMANDS
 
 # Game Logic Begins:
 

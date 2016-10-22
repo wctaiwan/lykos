@@ -1,9 +1,5 @@
-# The bot commands implemented in here are present no matter which module is loaded
-
 import base64
-import socket
 import sys
-import traceback
 
 from oyoyo.parse import parse_nick
 
@@ -130,7 +126,6 @@ def connect_callback(cli):
         request_caps.add("sasl")
 
     supported_caps = set()
-
 
     @hook("cap")
     def on_cap(cli, svr, mynick, cmd, caps, star=None):
