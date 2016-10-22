@@ -16,7 +16,7 @@ from src.messages import messages
 __all__ = ["pm", "is_fake_nick", "mass_mode", "mass_privmsg", "reply",
            "is_user_simple", "is_user_notice", "in_wolflist",
            "relay_wolfchat_command", "chk_nightdone", "chk_decision",
-           "chk_win", "is_role", "match_hostmask",
+           "chk_win", "is_role",
            "is_owner", "is_admin", "plural", "singular", "list_players",
            "list_players_and_roles", "list_participants", "get_role", "get_roles",
            "get_reveal_role", "get_templates", "role_order", "break_long_message",
@@ -189,17 +189,6 @@ def chk_win(cli, end_game=True, winner=None):
     pass
 
 is_role = lambda plyr, rol: rol in var.ROLES and plyr in var.ROLES[rol]
-
-def match_hostmask(hostmask, nick, ident, host):
-    # support n!u@h, u@h, or just h by itself
-    matches = re.match('(?:(?:(.*?)!)?(.*?)@)?(.*)', hostmask)
-
-    if ((not matches.group(1) or fnmatch.fnmatch(irc_lower(nick), irc_lower(matches.group(1)))) and
-            (not matches.group(2) or fnmatch.fnmatch(irc_lower(ident), irc_lower(matches.group(2)))) and
-            fnmatch.fnmatch(host.lower(), matches.group(3).lower())):
-        return True
-
-    return False
 
 def is_owner(nick, ident=None, host=None, acc=None):
     hosts = set(botconfig.OWNERS)

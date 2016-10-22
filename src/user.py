@@ -1,6 +1,7 @@
 from src.context import IRCContext
 
 from weakref import WeakSet
+import fnmatch
 import re
 
 Bot = None # bot instance
@@ -168,6 +169,17 @@ def lower(nick):
 
 def equals(nick1, nick2):
     return lower(nick1) == lower(nick2)
+
+def match_hostmask(hostmask, nick, ident, host):
+    # support n!u@h, u@h, or just h by itself
+    matches = re.match("(?:(?:(.*?)!)?(.*?)@)?(.*)", hostmask)
+
+    if ((not matches.group(1) or fnmatch.fnmatch(lower(nick), lower(matches.group(1)))) and
+            (not matches.group(2) or fnmatch.fnmatch(lower(ident), lower(matches.group(2)))) and
+            fnmatch.fnmatch(host.lower(), matches.group(3).lower())):
+        return True
+
+    return False
 
 class User(IRCContext):
 
