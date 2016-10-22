@@ -45,11 +45,8 @@ def on_privmsg(cli, rawnick, chan, msg, notice=False):
 
 def unhandled(cli, prefix, cmd, *args):
     if cmd in decorators.HOOKS:
-        largs = list(args)
-        for i,arg in enumerate(largs):
-            if isinstance(arg, bytes): largs[i] = arg.decode('ascii')
         for fn in decorators.HOOKS.get(cmd, []):
-            fn.caller(cli, prefix, *largs)
+            fn.caller(cli, prefix, *args)
 
 def connect_callback(cli):
     @hook("endofmotd", hookid=294)
