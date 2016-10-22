@@ -320,3 +320,157 @@ def mode_change(cli, rawnick, chan, mode, *targets):
 
     Event("mode_change", {}).dispatch(var, actor, target)
 
+### List modes handling (bans, quiets, ban and invite exempts)
+
+def handle_listmode(cli, chan, mode, target, setter, timestamp):
+    """Handle and store list modes."""
+
+    ch = channel.add(chan, cli)
+    if mode not in ch.modes:
+        ch.modes[mode] = {}
+    ch.modes[mode][target] = (setter, int(timestamp))
+
+@hook("banlist")
+def check_banlist(cli, server, bot_nick, chan, target, setter, timestamp):
+    """Update the channel ban list with the current one.
+
+    Ordering and meaning of arguments for the ban listing:
+
+    0 - The IRCClient instance (like everywhere else)
+    1 - The server the requester (i.e. the bot) is on
+    2 - The nickname of the requester (i.e. the bot)
+    3 - The channel holding the ban list
+    4 - The target of the ban
+    5 - The setter of the ban
+    6 - A UNIX timestamp of when the ban was set
+
+    """
+
+    handle_listmode(cli, chan, "b", target, setter, timestamp)
+
+@hook("quietlist")
+def check_quietlist(cli, server, bot_nick, chan, mode, target, setter, timestamp):
+    """Update the channel quiet list with the current one.
+
+    Ordering and meaning of arguments for the quiet listing:
+
+    0 - The IRCClient instance (like everywhere else)
+    1 - The server the requester (i.e. the bot) is on
+    2 - The nickname of the requester (i.e. the bot)
+    3 - The channel holding the quiet list
+    4 - The quiet mode of the server (single letter)
+    5 - The target of the quiet
+    6 - The setter of the quiet
+    7 - A UNIX timestamp of when the quiet was set
+
+    """
+
+    handle_listmode(cli, chan, mode, target, setter, timestamp)
+
+@hook("exceptlist")
+def check_banexemptlist(cli, server, bot_nick, chan, target, setter, timestamp):
+    """Update the channel ban exempt list with the current one.
+
+    Ordering and meaning of arguments for the ban exempt listing:
+
+    0 - The IRCClient instance (like everywhere else)
+    1 - The server the requester (i.e. the bot) is on
+    2 - The nickname of the requester (i.e. the bot)
+    3 - The channel holding the ban exempt list
+    4 - The target of the ban exempt
+    5 - The setter of the ban exempt
+    6 - A UNIX timestamp of when the ban exempt was set
+
+    """
+
+    handle_listmode(cli, chan, "e", target, setter, timestamp)
+
+@hook("invitelist")
+def check_inviteexemptlist(cli, server, bot_nick, chan, target, setter, timestamp):
+    """Update the channel invite exempt list with the current one.
+
+    Ordering and meaning of arguments for the invite exempt listing:
+
+    0 - The IRCClient instance (like everywhere else)
+    1 - The server the requester (i.e. the bot) is on
+    2 - The nickname of the requester (i.e. the bot)
+    3 - The channel holding the invite exempt list
+    4 - The target of the invite exempt
+    5 - The setter of the invite exempt
+    6 - A UNIX timestamp of when the invite exempt was set
+
+    """
+
+    handle_listmode(cli, chan, "I", target, setter, timestamp)
+
+def handle_endlistmode(cli, chan, mode):
+    """Handle the end of a list mode listing."""
+
+    ch = channel.add(chan, cli)
+    Event("end_listmode", {}).dispatch(var, ch, mode)
+
+@hook("endofbanlist")
+def end_banlist(cli, server, bot_nick, chan, message):
+    """Handle the end of the ban list.
+
+    Ordering and meaning of arguments for the end of ban list:
+
+    0 - The IRCClient instance (like everywhere else)
+    1 - The server the requester (i.e. the bot) is on
+    2 - The nickname of the requester (i.e. the bot)
+    3 - The channel holding the ban list
+    4 - A string containing some information; traditionally "End of Channel Ban List."
+
+    """
+
+    handle_endlistmode(cli, chan, "b")
+
+@hook("endofquietlist")
+def end_quietlist(cli, server, bot_nick, chan, mode, message):
+    """Handle the end of the quiet listing.
+
+    Ordering and meaning of arguments for the end of quiet list:
+
+    0 - The IRCClient instance (like everywhere else)
+    1 - The server the requester (i.e. the bot) is on
+    2 - The nickname of the requester (i.e. the bot)
+    3 - The channel holding the quiet list
+    4 - The quiet mode of the server (single letter)
+    5 - A string containing some information; traditionally "End of Channel Quiet List."
+
+    """
+
+    handle_endlistmode(cli, chan, mode)
+
+@hook("endofexceptlist")
+def end_banexemptlist(cli, server, bot_nick, chan, message):
+    """Handle the end of the ban exempt list.
+
+    Ordering and meaning of arguments for the end of ban exempt list:
+
+    0 - The IRCClient instance (like everywhere else)
+    1 - The server the requester (i.e. the bot) is on
+    2 - The nickname of the requester (i.e. the bot)
+    3 - The channel holding the ban exempt list
+    4 - A string containing some information; traditionally "End of Channel Exception List."
+
+    """
+
+    handle_endlistmode(cli, chan, "e")
+
+@hook("endofinvitelist")
+def end_inviteexemptlist(cli, server, bot_nick, chan, message):
+    """Handle the end of the invite exempt list.
+
+    Ordering and meaning of arguments for the end of invite exempt list:
+
+    0 - The IRCClient instance (like everywhere else)
+    1 - The server the requester (i.e. the bot) is on
+    2 - The nickname of the requester (i.e. the bot)
+    3 - The channel holding the invite exempt list
+    4 - A string containing some information; traditionally "End of Channel Invite List."
+
+    """
+
+    handle_endlistmode(cli, chan, "I")
+
