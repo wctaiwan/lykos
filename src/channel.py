@@ -1,3 +1,5 @@
+import time
+
 from src.context import IRCContext, Features
 
 Main = None # main channel
