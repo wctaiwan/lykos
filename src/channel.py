@@ -49,3 +49,17 @@ class Channel(IRCContext):
     def __repr__(self):
         return "{self.__class__.__name__}({self.name})".format(self=self)
 
+    def join(self, key=""):
+        if self.state in (0, 4):
+            self.state = 1
+            self.client.send("JOIN {0} :{1}".format(self.name, key))
+
+    def part(self, message=""):
+        if self.state == 2:
+            self.state = 3
+            self.client.send("PART {0} :{1}".format(self.name, message))
+
+    def kick(self, target, message=""):
+        if self.state == 2:
+            self.client.send("KICK {0} {1} :{2}".format(self.name, target, message))
+
