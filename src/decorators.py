@@ -133,18 +133,16 @@ class cmd:
                     forced_owner_only = True
                     break
 
-        owner = is_owner(nick, ident, host)
         if self.owner_only or forced_owner_only:
-            if owner:
+            if source.is_owner():
                 adminlog(target.name, source.rawnick, self.name, message)
                 return self.func(var, source, target, message)
 
             reply(source, target, messages["not_owner"])
             return
 
-        admin = is_admin(nick, ident, host)
-        if self.flag and (admin or owner):
         flags = var.FLAGS[source.rawnick] + var.FLAGS_ACCS[source.account]
+        if self.flag and source.is_admin():
             adminlog(target.name, source.rawnick, self.name, message)
             return self.func(var, source, target, message)
 

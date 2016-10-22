@@ -1,4 +1,3 @@
-import fnmatch
 import itertools
 import json
 import random
@@ -17,7 +16,6 @@ __all__ = ["pm", "is_fake_nick", "mass_mode", "mass_privmsg", "reply",
            "is_user_simple", "is_user_notice", "in_wolflist",
            "relay_wolfchat_command", "chk_nightdone", "chk_decision",
            "chk_win", "is_role",
-           "is_owner", "is_admin", "plural", "singular", "list_players",
            "list_players_and_roles", "list_participants", "get_role", "get_roles",
            "get_reveal_role", "get_templates", "role_order", "break_long_message",
            "complete_match", "get_victim", "get_nick", "pastebin_tb",
@@ -189,62 +187,6 @@ def chk_win(cli, end_game=True, winner=None):
     pass
 
 is_role = lambda plyr, rol: rol in var.ROLES and plyr in var.ROLES[rol]
-
-def is_owner(nick, ident=None, host=None, acc=None):
-    hosts = set(botconfig.OWNERS)
-    accounts = set(botconfig.OWNERS_ACCOUNTS)
-    if nick in var.USERS:
-        if not ident:
-            ident = var.USERS[nick]["ident"]
-        if not host:
-            host = var.USERS[nick]["host"]
-        if not acc:
-            acc = var.USERS[nick]["account"]
-
-    if not var.DISABLE_ACCOUNTS and acc and acc != "*":
-        for pattern in accounts:
-            if fnmatch.fnmatch(irc_lower(acc), irc_lower(pattern)):
-                return True
-
-    if host:
-        for hostmask in hosts:
-            if match_hostmask(hostmask, nick, ident, host):
-                return True
-
-    return False
-
-def is_admin(nick, ident=None, host=None, acc=None):
-    if nick in var.USERS:
-        if not ident:
-            ident = var.USERS[nick]["ident"]
-        if not host:
-            host = var.USERS[nick]["host"]
-        if not acc:
-            acc = var.USERS[nick]["account"]
-    acc = irc_lower(acc)
-    hostmask = irc_lower(nick) + "!" + irc_lower(ident) + "@" + host.lower()
-    flags = var.FLAGS[hostmask] + var.FLAGS_ACCS[acc]
-
-    if not "F" in flags:
-        try:
-            hosts = set(botconfig.ADMINS)
-            accounts = set(botconfig.ADMINS_ACCOUNTS)
-
-            if not var.DISABLE_ACCOUNTS and acc and acc != "*":
-                for pattern in accounts:
-                    if fnmatch.fnmatch(irc_lower(acc), irc_lower(pattern)):
-                        return True
-
-            if host:
-                for hostmask in hosts:
-                    if match_hostmask(hostmask, nick, ident, host):
-                        return True
-        except AttributeError:
-            pass
-
-        return is_owner(nick, ident, host, acc)
-
-    return True
 
 def plural(role, count=2):
     if count == 1:

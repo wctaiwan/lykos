@@ -200,6 +200,44 @@ class User(IRCContext):
     def __repr__(self):
         return "{self.__class__.__name__}({self.nick}, {self.ident}, {self.host}, {self.realname}, {self.account}, {self.channels})".format(self=self)
 
+    def is_owner(self):
+        hosts = set(botconfig.OWNERS)
+        accounts = set(botconfig.OWNERS_ACCOUNTS)
+
+        if not var.DISABLE_ACCOUNTS and self.account is not None:
+            for pattern in accounts:
+                if fnmatch.fnmatch(lower(self.account), lower(pattern)):
+                    return True
+
+        for hostmask in hosts:
+            if match_hostmask(hostmask, self.nick, self.ident, self.host):
+                return True
+
+        return False
+
+    def is_admin(self):
+        flags = var.FLAGS[self.rawnick] + var.FLAGS_ACCS[self.account]
+
+        if "F" not in flags:
+            try:
+                hosts = set(botconfig.ADMINS)
+                accounts = set(botconfig.ADMINS_ACCOUNTS)
+
+                if not var.DISABLE_ACCOUNTS and self.account is not None:
+                    for pattern in accounts:
+                        if fnmatch.fnmatch(lower(self.account), lower(pattern)):
+                            return True
+
+                for hostmask in hosts:
+                    if match_hostmask(hostmask, self.nick, self.ident, self.host):
+                        return True
+            except AttributeError:
+                pass
+
+            return self.is_owner()
+
+        return True
+
     def get_send_type(self, *, is_notice=False, is_privmsg=False):
         if is_notice and not is_privmsg: # still to do
             return "NOTICE"
