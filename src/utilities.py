@@ -15,7 +15,7 @@ from src.messages import messages
 __all__ = ["pm", "is_fake_nick", "mass_mode", "mass_privmsg", "reply",
            "is_user_simple", "is_user_notice", "in_wolflist",
            "relay_wolfchat_command", "chk_nightdone", "chk_decision",
-           "chk_win", "is_role",
+           "chk_win", "is_role", "plural", "singular", "list_players",
            "list_players_and_roles", "list_participants", "get_role", "get_roles",
            "get_reveal_role", "get_templates", "role_order", "break_long_message",
            "complete_match", "get_victim", "get_nick", "pastebin_tb",
