@@ -148,6 +148,27 @@ def parse_rawnick_as_dict(rawnick, *, default=None):
 
     return _raw_nick_pattern.search(rawnick).groupdict(default)
 
+def lower(nick):
+    if nick is None:
+        return None
+
+    mapping = {
+        "[": "{",
+        "]": "}",
+        "\\": "|",
+        "^": "~",
+    }
+
+    if Features["CASEMAPPING"] == "strict-rfc1459":
+        mapping.pop("^")
+    elif Features["CASEMAPPING"] == "ascii":
+        mapping.clear()
+
+    return nick.lower().translate(str.maketrans(mapping))
+
+def equals(nick1, nick2):
+    return lower(nick1) == lower(nick2)
+
 class User(IRCContext):
 
     is_user = True
