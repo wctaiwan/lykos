@@ -1,4 +1,4 @@
-from src.context import IRCContext
+from src.context import IRCContext, Features
 
 Main = None # main channel
 
@@ -6,10 +6,18 @@ all_channels = {}
 
 _states = ("not yet joined", "pending join", "joined", "pending leave", "left channel", "", "quit", "deleted", "cleared")
 
-get = all_channels.__getitem__
+def _strip(name):
+    return name.lstrip("".join(Features["STATUSMSG"]))
+
+def get(name):
+    """Return an existing channel, or raise a KeyError if it doesn't exist."""
+
+    return all_channels[_strip(name)]
 
 def add(name, cli):
     """Add and return a new channel, or an existing one if it exists."""
+
+    name = _strip(name)
 
     if name in all_channels:
         if cli is not all_channels[name].client:
@@ -19,7 +27,10 @@ def add(name, cli):
     chan = all_channels[name] = Channel(name, cli)
     return chan
 
-exists = all_channels.__contains__
+def exists(name):
+    """Return True if a channel with the name exists, False otherwise."""
+
+    return _strip(name) in all_channels
 
 class Channel(IRCContext):
 
