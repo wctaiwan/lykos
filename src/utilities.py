@@ -16,7 +16,7 @@ from src.messages import messages
 __all__ = ["pm", "is_fake_nick", "mass_mode", "mass_privmsg", "reply",
            "is_user_simple", "is_user_notice", "in_wolflist",
            "relay_wolfchat_command", "chk_nightdone", "chk_decision",
-           "chk_win", "irc_lower", "irc_equals", "is_role", "match_hostmask",
+           "chk_win", "is_role", "match_hostmask",
            "is_owner", "is_admin", "plural", "singular", "list_players",
            "list_players_and_roles", "list_participants", "get_role", "get_roles",
            "get_reveal_role", "get_templates", "role_order", "break_long_message",
@@ -189,30 +189,6 @@ def chk_decision(cli, force=""):
 @proxy.stub
 def chk_win(cli, end_game=True, winner=None):
     pass
-
-def irc_lower(nick):
-    if nick is None:
-        return None
-
-    mapping = {
-        "[": "{",
-        "]": "}",
-        "\\": "|",
-        "^": "~",
-    }
-
-    # var.CASEMAPPING may not be defined yet in some circumstances (like database upgrades)
-    # if so, default to rfc1459
-    if hasattr(var, "CASEMAPPING"):
-        if var.CASEMAPPING == "strict-rfc1459":
-            mapping.pop("^")
-        elif var.CASEMAPPING == "ascii":
-            mapping = {}
-
-    return nick.lower().translate(str.maketrans(mapping))
-
-def irc_equals(nick1, nick2):
-    return irc_lower(nick1) == irc_lower(nick2)
 
 is_role = lambda plyr, rol: rol in var.ROLES and plyr in var.ROLES[rol]
 
