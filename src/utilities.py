@@ -463,7 +463,7 @@ def get_nick(cli, nick):
         return None
     return ul[ull.index(lnick)]
 
-def pastebin_tb(cli, msg, exc):
+def pastebin_tb(chan, msg, exc):
     try:
         bot_id = re.sub(r"[^A-Za-z0-9-]", "-", botconfig.NICK)
         bot_id = re.sub(r"--+", "-", bot_id)
@@ -484,9 +484,9 @@ def pastebin_tb(cli, msg, exc):
         url = data["url"] + "/py3tb"
     except Exception:
         # Exception is already printed before calling this function, don't print twice
-        cli.msg(botconfig.DEV_CHANNEL, msg + " (Unable to pastebin traceback; please check the console.)")
+        chan.send(msg + " (Unable to pastebin traceback; please check the console.)")
     else:
-        cli.msg(botconfig.DEV_CHANNEL, " ".join((msg, url)))
+        chan.send(" ".join((msg, url)))
 
 class InvalidModeException(Exception): pass
 
