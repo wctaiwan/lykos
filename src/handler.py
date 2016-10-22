@@ -184,10 +184,4 @@ def connect_callback(cli):
                  "in botconfig.USERNAME if it's different from the bot nick?")
             cli.quit()
 
-
-
-@hook("ping")
-def on_ping(cli, prefix, server):
-    cli.send('PONG', server)
-
 # vim: set sw=4 expandtab:
