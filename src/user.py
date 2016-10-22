@@ -1,6 +1,31 @@
 from src.context import IRCContext
+import re
 
 Bot = None # bot instance
+
+_raw_nick_pattern = re.compile(
+
+    r"""
+    \A
+    (?P<nick>  [^!@\s]+ (?=!|$) )? !?
+    (?P<ident> [^!@\s]+         )? @?
+    (?P<host>  \S+ )?
+    \Z
+    """,
+
+    re.VERBOSE
+
+)
+
+def parse_rawnick(rawnick, *, default=None):
+    """Return a tuple of (nick, ident, host) from rawnick."""
+
+    return _raw_nick_pattern.search(rawnick).groups(default)
+
+def parse_rawnick_as_dict(rawnick, *, default=None):
+    """Return a dict of {"nick": nick, "ident": ident, "host": host}."""
+
+    return _raw_nick_pattern.search(rawnick).groupdict(default)
 
 class User(IRCContext):
 

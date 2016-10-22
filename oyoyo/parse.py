@@ -61,25 +61,3 @@ def parse_raw_irc_command(element, encoding):
                 break
 
     return (prefix, command, args)
-
-
-def parse_nick(name):
-    """ parse a nickname and return a tuple of (nick, mode, user, host)
-
-    <nick> [ '!' [<mode> = ] <user> ] [ '@' <host> ]
-    """
-
-    try:
-        nick, rest = name.split('!')
-    except ValueError:
-        return (name, None, None, None)
-    try:
-        mode, rest = rest.split('=')
-    except ValueError:
-        mode, rest = None, rest
-    try:
-        user, host = rest.split('@')
-    except ValueError:
-        return (nick, mode, rest, None)
-
-    return (nick, mode, user, host)
