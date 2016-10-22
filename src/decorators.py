@@ -10,7 +10,7 @@ from oyoyo.parse import parse_nick
 import botconfig
 import src.settings as var
 from src.utilities import *
-from src import logger, errlog, events
+from src import logger, errlog, events, channel
 from src.messages import messages
 
 adminlog = logger.logger("audit.log")
@@ -40,21 +40,14 @@ class handle_error:
             return self.func(*args, **kwargs)
         except Exception:
             traceback.print_exc() # no matter what, we want it to print
-            if kwargs.get("cli"): # client
-                cli = kwargs["cli"]
-            else:
-                for cli in args:
-                    if isinstance(cli, IRCClient):
-                        break
-                else:
-                    cli = None
-
-            if cli is not None:
-                if not botconfig.PASTEBIN_ERRORS or botconfig.CHANNEL != botconfig.DEV_CHANNEL:
-                    cli.msg(botconfig.CHANNEL, messages["error_log"])
-                errlog(traceback.format_exc())
-                if botconfig.PASTEBIN_ERRORS and botconfig.DEV_CHANNEL:
-                    pastebin_tb(cli, messages["error_log"], traceback.format_exc())
+            chan = channel.Main
+            if botconfig.DEV_CHANNEL:
+                chan = channel.get(botconfig.DEV_CHANNEL)
+            if not botconfig.PASTEBIN_ERRORS or channel.Main is not chan:
+                channel.Main.send(messages["error_log"])
+            errlog(traceback.format_exc())
+            if botconfig.PASTEBIN_ERRORS and botconfig.DEV_CHANNEL:
+                pastebin_tb(chan, messages["error_log"], traceback.format_exc())
 
 class cmd:
     def __init__(self, *cmds, raw_nick=False, flag=None, owner_only=False,
