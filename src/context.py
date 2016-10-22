@@ -1,3 +1,5 @@
+Features = {"CASEMAPPING": "rfc1459", "CHARSET": "utf-8", "STATUSMSG": "@+"} # IRC server features (these are defaults)
+
 class IRCContext:
     """Base class for channels and users."""
 
