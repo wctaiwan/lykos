@@ -101,6 +101,7 @@ class IRCClient:
         self.server_pass = None
         self.lock = threading.RLock()
         self.stream_handler = lambda output, level=None: print(output)
+        self.encoding = "latin-1"
 
         self.tokenbucket = TokenBucket(23, 1.73)
 
@@ -124,7 +125,7 @@ class IRCClient:
         """
         with self.lock:
             # Convert all args to bytes if not already
-            encoding = kwargs.get('encoding') or 'utf_8'
+            encoding = kwargs.get("encoding", self.encoding)
             bargs = []
             for i,arg in enumerate(args):
                 if isinstance(arg, str):
@@ -138,12 +139,12 @@ class IRCClient:
                                      'provided: {0}').format(repr([(type(arg), arg)
                                                                    for arg in args]), i))
 
-            msg = bytes(" ", "utf_8").join(bargs)
+            msg = b" ".join(bargs)
             self.stream_handler('---> send {0}'.format(str(msg)[1:]))
 
             while not self.tokenbucket.consume(1):
                 time.sleep(0.3)
-            self.socket.send(msg + bytes("\r\n", "utf_8"))
+            self.socket.send(msg + b"\r\n")
 
     def connect(self):
         """ initiates the connection to the server set in self.host:self.port
@@ -191,7 +192,7 @@ class IRCClient:
                     sys.stderr.write(traceback.format_exc())
                     raise e
 
-            buffer = bytes()
+            buffer = b""
             while not self._end:
                 try:
                     buffer += self.socket.recv(1024)
@@ -202,28 +203,23 @@ class IRCClient:
                         sys.stderr.write(traceback.format_exc())
                         raise e
                 else:
-                    data = buffer.split(bytes("\n", "utf_8"))
+                    data = buffer.split(b"\n")
                     buffer = data.pop()
 
                     for el in data:
-                        prefix, command, args = parse_raw_irc_command(el)
+                        prefix, command, args = parse_raw_irc_command(el, self.encoding)
 
-                        try:
-                            enc = "utf8"
-                            fargs = [arg.decode(enc) for arg in args if isinstance(arg,bytes)]
-                        except UnicodeDecodeError:
-                            enc = "latin1"
-                            fargs = [arg.decode(enc) for arg in args if isinstance(arg,bytes)]
+                        fargs = []
+                        for arg in args:
+                            fargs.append(arg.decode(self.encoding))
 
                         try:
                             largs = list(args)
                             if prefix is not None:
-                                prefix = prefix.decode(enc)
+                                prefix = prefix.decode(self.encoding)
                             self.stream_handler("<--- receive {0} {1} ({2})".format(prefix, command, ", ".join(fargs)), level="debug")
-                            # for i,arg in enumerate(largs):
-                                # if arg is not None: largs[i] = arg.decode(enc)
                             if command in self.command_handler:
-                                self.command_handler[command](self, prefix,*fargs)
+                                self.command_handler[command](self, prefix, *fargs)
                             elif "" in self.command_handler:
                                 self.command_handler[""](self, prefix, command, *fargs)
                         except Exception as e:

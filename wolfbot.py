@@ -66,6 +66,7 @@ def main():
                      use_ssl=botconfig.USE_SSL,
                      connect_cb=handler.connect_callback,
                      stream_handler=src.stream,
+                     encoding="utf-8",
     )
     cli.mainLoop()
 
