@@ -271,27 +271,38 @@ def reset():
 reset()
 
 @cmd("fsync", flag="m", pm=True)
-def fsync(cli, nick, chan, rest):
+def fsync(var, actor, target, message):
     """Makes the bot apply the currently appropriate channel modes."""
-    sync_modes(cli)
+    sync_modes()
 
-def sync_modes(cli):
-    voices = []
+@event_listener("mode_change")
+def check_for_sync_modes(actor, target):
+    # Only sync modes if a server changed modes because
+    # 1) human ops probably know better;
+    # 2) other bots might start a fight over modes;
+    # 3) recursion; we see our own mode changes.
+    if actor is None:
+        sync_modes()
+
+def sync_modes():
     pl = list_players()
-    for nick, u in var.USERS.items():
+    mode = Features["PREFIX"]["+"]
+    modes = []
+    for val in channel.Main.users:
         if var.DEVOICE_DURING_NIGHT and var.PHASE == "night":
-            if "v" in u.get("modes", set()):
-              voices.append(("-v", nick))
-        elif nick in pl and "v" not in u.get("modes", set()):
-            voices.append(("+v", nick))
-        elif nick not in pl and "v" in u.get("modes", set()):
-            voices.append(("-v", nick))
-    if var.PHASE in var.GAME_PHASES:
-        other = ["+m"]
-    else:
-        other = ["-m"]
+            if val in channel.Main.modes[mode]:
+                modes.append(("-" + mode, val.nick))
+        elif val in pl and val not in channel.Main.modes[mode]:
+            modes.append(("+" + mode, val.nick))
+        elif val not in pl and val in channel.Main.modes[mode]:
+            modes.append(("-" + mode, val.nick))
 
-    mass_mode(cli, voices, other)
+    if var.PHASE in var.GAME_PHASES:
+        other = "+m"
+    else:
+        other = "-m"
+
+    channel.Main.mode(other, *voices)
 
 @cmd("refreshdb", flag="m", pm=True)
 def refreshdb(cli, nick, chan, rest):
