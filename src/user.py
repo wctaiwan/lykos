@@ -4,6 +4,7 @@ import fnmatch
 import re
 
 from src.context import IRCContext, Features
+from src.logger import debuglog
 from src import settings as var
 
 import botconfig
@@ -13,6 +14,8 @@ Bot = None # bot instance
 all_users = WeakSet()
 
 _arg_msg = "(nick={0}, ident={1}, host={2}, realname={3}, account={4}, allow_bot={5})"
+
+predicate = re.compile(r"^[0-9]+$").search
 
 def get(nick=None, ident=None, host=None, realname=None, account=None, *, allow_multiple=False, allow_none=False, allow_bot=False, raw_nick=False):
     """Return the matching user(s) from the user list.
@@ -106,7 +109,11 @@ def add(cli, *, nick, ident=None, host=None, realname=None, account=None, channe
     else:
         channels = dict(channels)
 
-    new = User(cli, nick, ident, host, realname, account, channels)
+    cls = User
+    if predicate(nick):
+        cls = FakeUser
+
+    new = cls(cli, nick, ident, host, realname, account, channels)
     all_users.add(new)
     return new
 
@@ -207,6 +214,9 @@ class User(IRCContext):
         return "{self.__class__.__name__}({self.nick}, {self.ident}, {self.host}, {self.realname}, {self.account}, {self.channels})".format(self=self)
 
     def is_owner(self):
+        if self.is_fake:
+            return False # fake nicks can't ever be owner
+
         hosts = set(botconfig.OWNERS)
         accounts = set(botconfig.OWNERS_ACCOUNTS)
 
@@ -222,6 +232,9 @@ class User(IRCContext):
         return False
 
     def is_admin(self):
+        if self.is_fake:
+            return False # they can't be admin, either
+
         flags = var.FLAGS[self.rawnick] + var.FLAGS_ACCS[self.account]
 
         if "F" not in flags:
@@ -293,3 +306,21 @@ class User(IRCContext):
     @rawnick.setter
     def rawnick(self, rawnick):
         self.nick, self.ident, self.host = parse_rawnick(rawnick)
+        
+class FakeUser(User):
+
+    is_fake = True
+
+    def queue_message(self, message):
+        self.send(message) # don't actually queue it
+
+    def send(self, data, *, notice=False, privmsg=False):
+        debuglog("Would message fake user {0}: {1!r}".format(self.nick, data))
+
+    @property
+    def rawnick(self):
+        return self.nick # we don't have a raw nick
+
+    @rawnick.setter
+    def rawnick(self, rawnick):
+        self.nick = parse_rawnick_as_dict(rawnick)["nick"]

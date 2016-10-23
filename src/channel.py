@@ -1,6 +1,8 @@
 import time
 
 from src.context import IRCContext, Features
+from src.logger import debuglog
+from src import user
 
 Main = None # main channel
 
@@ -10,6 +12,9 @@ _states = ("not yet joined", "pending join", "joined", "pending leave", "left ch
 
 def _strip(name):
     return name.lstrip("".join(Features["STATUSMSG"]))
+
+def predicate(name):
+    return not name.startswith(tuple(Features["CHANTYPES"]))
 
 def get(name):
     """Return an existing channel, or raise a KeyError if it doesn't exist."""
@@ -26,7 +31,12 @@ def add(name, cli):
             raise RuntimeError("different IRC client for channel {0}".format(name))
         return all_channels[name]
 
-    chan = all_channels[name] = Channel(name, cli)
+    cls = Channel
+    if predicate(name):
+        cls = FakeChannel
+
+    chan = all_channels[name] = cls(name, cli)
+    chan.join()
     return chan
 
 def exists(name):
@@ -181,3 +191,33 @@ class Channel(IRCContext):
         self.timestamp = None
         del all_channels[self.name]
 
+class FakeChannel(Channel):
+
+    is_fake = True
+
+    def join(self, key=""):
+        pass # don't actually do anything
+
+    def part(self, message=""):
+        pass
+
+    def send(self, data, *, notice=False, privmsg=False):
+        debuglog("Would message fake channel {0}: {1!r}".format(self.name, data))
+
+    def mode(self, *changes):
+        if not changes:
+            return
+
+        modes = []
+        targets = []
+
+        for change in changes:
+            if isinstance(change, str):
+                modes.append(change)
+            else:
+                mode, target = change
+                modes.append(mode)
+                if target is not None:
+                    targets.append(target)
+
+        self.update_modes(user.Bot.rawnick, "".join(modes), targets)
