@@ -79,6 +79,7 @@ var.TIMERS = {}
 
 var.ORIGINAL_SETTINGS = {}
 var.CURRENT_GAMEMODE = var.GAME_MODES["default"][0]()
+var.OLD_MODES = {}
 
 var.LAST_SAID_TIME = {}
 
@@ -210,7 +211,7 @@ def reset_settings():
         setattr(var, attr, var.ORIGINAL_SETTINGS[attr])
     var.ORIGINAL_SETTINGS.clear()
 
-def reset_modes_timers(cli):
+def reset_modes_timers():
     # Reset game timers
     with var.WARNING_LOCK: # make sure it isn't being used by the ping join handler
         for x, timr in var.TIMERS.items():
@@ -219,21 +220,23 @@ def reset_modes_timers(cli):
 
     # Reset modes
     cmodes = []
+    prefix = "-" + hooks.Features["PREFIX"]["+"]
     for plr in list_players():
-        cmodes.append(("-v", plr))
+        cmodes.append((prefix, plr.nick))
+
     if var.AUTO_TOGGLE_MODES:
-        for plr in var.USERS:
-            if not "moded" in var.USERS[plr]:
-                continue
-            for mode in var.USERS[plr]["moded"]:
-                cmodes.append(("+"+mode, plr))
-            var.USERS[plr]["modes"].update(var.USERS[plr]["moded"])
-            var.USERS[plr]["moded"] = set()
+        for val, modes in var.OLD_MODES.items():
+            for mode in modes:
+                cmodes.append(("+" + mode, val.nick))
+        var.OLD_MODES.clear()
+
     if var.QUIET_DEAD_PLAYERS:
+        prefix = "-" + var.QUIET_MODE
         for deadguy in var.DEAD:
-            if not is_fake_nick(deadguy):
-                cmodes.append(("-{0}".format(var.QUIET_MODE), var.QUIET_PREFIX+deadguy+"!*@*"))
-    mass_mode(cli, cmodes, ["-m"])
+            if not deadguy.is_fake:
+                cmodes.append((prefix, "{0}{1}!*@*".format(var.QUIET_PREFIX, deadguy.nick)))
+
+    channel.Main.mode("-m", *cmodes)
 
 def reset():
     var.PHASE = "none" # "join", "day", or "night"
