@@ -3,7 +3,7 @@ import re
 
 import botconfig
 import src.settings as var
-from src import db
+from src import channel, db
 from src.utilities import *
 from src.decorators import cmd
 from src.events import Event
@@ -46,14 +46,14 @@ def decrement_stasis(nick=None):
     db.expire_stasis()
     db.init_vars()
 
-def expire_tempbans(cli):
+def expire_tempbans():
     acclist, hmlist = db.expire_tempbans()
     cmodes = []
     for acc in acclist:
         cmodes.append(("-b", "{0}{1}".format(var.ACCOUNT_PREFIX, acc)))
     for hm in hmlist:
         cmodes.append(("-b", "*!*@{0}".format(hm)))
-    mass_mode(cli, cmodes, [])
+    channel.Main.mode(*cmodes)
 
 def parse_warning_target(target, lower=False):
     if target[0] == "=":
@@ -198,7 +198,7 @@ def add_warning(cli, target, amount, actor, reason, notes=None, expires=None, sa
             cmodes.append(("+b", "{0}{1}".format(var.ACCOUNT_PREFIX, acc)))
         for hm in hmlist:
             cmodes.append(("+b", "*!*@{0}".format(hm)))
-        mass_mode(cli, cmodes, [])
+        channel.Main.mode(*cmodes)
         for (nick, user) in var.USERS.items():
             if user["account"] in acclist:
                 cli.kick(botconfig.CHANNEL, nick, messages["tempban_kick"].format(nick=nick, botnick=botconfig.NICK, reason=reason))
