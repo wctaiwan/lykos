@@ -1,5 +1,23 @@
 Features = {"CASEMAPPING": "rfc1459", "CHARSET": "utf-8", "STATUSMSG": "@+"} # IRC server features (these are defaults)
 
+def lower(nick):
+    if nick is None:
+        return None
+
+    mapping = {
+        "[": "{",
+        "]": "}",
+        "\\": "|",
+        "^": "~",
+    }
+
+    if Features["CASEMAPPING"] == "strict-rfc1459":
+        mapping.pop("^")
+    elif Features["CASEMAPPING"] == "ascii":
+        mapping.clear()
+
+    return nick.lower().translate(str.maketrans(mapping))
+
 class IRCContext:
     """Base class for channels and users."""
 
@@ -7,9 +25,13 @@ class IRCContext:
     is_user = False
     is_fake = False
 
-    def __init__(self, name, client):
+    def __init__(self, name, client, *, ref=None):
         self.name = name
         self.client = client
+        self.ref = ref
+
+    def lower(self):
+        return type(self)(lower(name), client, ref=(self.ref or ref))
 
     def get_send_type(self, *, is_notice=False, is_privmsg=False):
         if is_notice and not is_privmsg:

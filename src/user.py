@@ -3,7 +3,7 @@ from weakref import WeakSet
 import fnmatch
 import re
 
-from src.context import IRCContext, Features
+from src.context import IRCContext, Features, lower
 from src.logger import debuglog
 from src import settings as var
 
@@ -160,24 +160,6 @@ def parse_rawnick_as_dict(rawnick, *, default=None):
 
     return _raw_nick_pattern.search(rawnick).groupdict(default)
 
-def lower(nick):
-    if nick is None:
-        return None
-
-    mapping = {
-        "[": "{",
-        "]": "}",
-        "\\": "|",
-        "^": "~",
-    }
-
-    if Features["CASEMAPPING"] == "strict-rfc1459":
-        mapping.pop("^")
-    elif Features["CASEMAPPING"] == "ascii":
-        mapping.clear()
-
-    return nick.lower().translate(str.maketrans(mapping))
-
 def equals(nick1, nick2):
     return lower(nick1) == lower(nick2)
 
@@ -198,15 +180,14 @@ class User(IRCContext):
 
     _messages = defaultdict(list)
 
-    def __init__(self, cli, nick, ident, host, realname, account, channels, *, ref=None):
-        super().__init__(nick, cli)
+    def __init__(self, cli, nick, ident, host, realname, account, channels, **kwargs):
+        super().__init__(nick, cli, **kwargs)
         self.nick = nick
         self.ident = ident
         self.host = host
         self.realname = realname
         self.account = account
         self.channels = channels
-        self.ref = ref
 
     def __str__(self):
         return "{self.__class__.__name__}: {self.nick}!{self.ident}@{self.host}#{self.realname}:{self.account}".format(self=self)
