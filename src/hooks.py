@@ -11,6 +11,7 @@ import time
 from src.decorators import hook
 from src.context import Features
 from src.events import Event
+from src.logger import plog
 
 from src import channel, user, settings as var
 
@@ -594,3 +595,48 @@ def kicked_from_chan(cli, rawnick, chan, target, reason):
 
     Event("chan_kick", {}).dispatch(var, ch, actor, val, reason)
 
+### QUIT handling
+
+def quit(message=""):
+    """Quit the bot from IRC."""
+
+    if channel.Main is None or channel.Main.state < 0:
+        return
+
+    cli = channel.Main.client
+    if cli is None:
+        plog("Tried to QUIT but everything was being torn down.")
+        return
+
+    with cli:
+        cli.send("QUIT :{0}".format(message))
+
+    channel.Main.state = -3
+
+@hook("quit")
+def on_quit(cli, rawnick, reason):
+    """Handle a user quitting the IRC server.
+
+    Ordering and meaning of arguments for a server QUIT:
+
+    0 - The IRCClient instance (like everywhere else)
+    1 - The raw nick (nick!ident@host) of the user quitting
+    2 - The reason for the quit (always present)
+
+    This fires off an event, after removing the user from all of their
+    channels. If the user is not in a game, the event will hold the
+    last reference for the user, and then it will be destroyed. If the
+    user is playing, the game state will hold strong references to it,
+    ensuring it's not deleted.
+
+    """
+
+    val = user.get(rawnick, allow_bot=True, raw_nick=True)
+
+    for chan in set(val.channels):
+        if val is user.Bot:
+            chan.clear()
+        else:
+            chan.remove_user(val)
+
+    Event("server_quit", {}).dispatch(var, val, reason)
