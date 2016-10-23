@@ -262,16 +262,35 @@ def break_long_message(phrases, joinstr = " "):
             message.append(phrase)
     return joinstr.join(message)
 
-#completes a partial nickname or string from a list
-def complete_match(string, matches):
+def complete_match(string, matches, *, context=False):
+    """Complete a partial nickname or string from a list.
+
+    The optional keyword argument 'context' can be set to True if the
+    possible matches are IRCContext instances (e.g. a channel or user).
+
+    """
+
     num_matches = 0
-    bestmatch = string
+    if context:
+        bestmatch = None
+    else:
+        bestmatch = string
+
     for possible in matches:
-        if string == possible:
-            return string, 1
-        if possible.startswith(string) or possible.lstrip("[{\\^_`|}]").startswith(string):
-            bestmatch = possible
-            num_matches += 1
+        if context:
+            if possible.name == string:
+                return possible, 1
+            if possible.name.startswith(string) or possible.name.lstrip("[{\\^_`|}]").startswith(string):
+                bestmatch = possible
+                num_matches += 1
+
+        else:
+            if string == possible:
+                return string, 1
+            if possible.startswith(string) or possible.lstrip("[{\\^_`|}]").startswith(string):
+                bestmatch = possible
+                num_matches += 1
+
     if num_matches != 1:
         return None, num_matches
     else:
