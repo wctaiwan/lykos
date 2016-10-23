@@ -3,7 +3,11 @@ from weakref import WeakSet
 import fnmatch
 import re
 
-from src.context import IRCContext
+from src.context import IRCContext, Features
+from src import settings as var
+
+import botconfig
+
 Bot = None # bot instance
 
 all_users = WeakSet()

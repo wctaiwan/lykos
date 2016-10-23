@@ -1,16 +1,16 @@
-import itertools
-import json
-import random
-import re
-import string
 import traceback
+import itertools
+import random
+import string
 import urllib
+import json
+import re
 
 import botconfig
 import src.settings as var
 from src import proxy, debuglog
-from src.events import Event
 from src.messages import messages
+from src.events import Event
 
 __all__ = ["pm", "is_fake_nick", "reply",
            "is_user_simple", "is_user_notice", "in_wolflist",
