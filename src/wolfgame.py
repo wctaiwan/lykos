@@ -40,13 +40,11 @@ from collections import defaultdict, deque
 import json
 from datetime import datetime, timedelta
 
-from oyoyo.parse import parse_nick
-
 import botconfig
 import src
 import src.settings as var
 from src.utilities import *
-from src import db, events, hooks, logger, proxy, channel, debuglog, errlog, plog
+from src import db, events, hooks, logger, proxy, channel, user, debuglog, errlog, plog
 from src.decorators import COMMANDS, handle_error, cmd, hook, event_listener
 from src.messages import messages
 from src.warnings import *
@@ -305,18 +303,17 @@ def sync_modes():
     channel.Main.mode(other, *voices)
 
 @cmd("refreshdb", flag="m", pm=True)
-def refreshdb(cli, nick, chan, rest):
+def refreshdb(var, source, target, message):
     """Updates our tracking vars to the current db state."""
     db.expire_stasis()
     db.init_vars()
-    expire_tempbans(cli)
-    reply(cli, nick, chan, "Done.")
+    expire_tempbans()
+    reply(source, target, "Done.")
 
 @cmd("fdie", "fbye", flag="D", pm=True)
-def forced_exit(cli, nick, chan, rest):
+def forced_exit(var, source, target, message):
     """Forces the bot to close."""
-
-    args = rest.split()
+    args = message.split()
 
     if args and args[0] == "-dirty":
         # use as a last resort
@@ -329,31 +326,24 @@ def forced_exit(cli, nick, chan, rest):
 
     if var.PHASE in var.GAME_PHASES:
         if var.PHASE == "join" or force or nick == "<console>":
-            stop_game(cli, log=False)
+            stop_game(log=False)
         else:
-            reply(cli, nick, chan, messages["stop_bot_ingame_safeguard"].format(
+            reply(source, target, messages["stop_bot_ingame_safeguard"].format(
                 what="stop", cmd="fdie", prefix=botconfig.CMD_CHAR), private=True)
             return
 
-    reset_modes_timers(cli)
+    reset_modes_timers()
     reset()
 
     msg = "{0} quit from {1}"
 
-    if rest.strip():
+    if message.strip():
         msg += " ({2})"
 
-    try:
-        cli.quit(msg.format("Scheduled" if forced_exit.aftergame else "Forced",
-                            nick,
-                            rest.strip()))
-    except Exception:
-        # bot may have quit by this point, so can't use regular handler
-        # the operator should see this on console anyway even though it isn't logged
-        traceback.print_exc()
-        sys.exit()
+    hooks.quit(source, msg.format("Scheduled" if forced_exit.aftergame else "Forced",
+                                  source.nick, message.strip()))
 
-def _restart_program(cli, mode=None):
+def _restart_program(mode=None):
     plog("RESTARTING")
 
     python = sys.executable
@@ -364,12 +354,11 @@ def _restart_program(cli, mode=None):
     else:
         os.execl(python, python, *sys.argv)
 
-
 @cmd("frestart", flag="D", pm=True)
-def restart_program(cli, nick, chan, rest):
-    """Restarts the bot."""
+def restart_program(var, source, target, message):
+    """Restart the bot."""
 
-    args = rest.split()
+    args = message.split()
 
     if botconfig.DEBUG_MODE or (args and args[0] == "-force"):
         force = True
@@ -379,52 +368,49 @@ def restart_program(cli, nick, chan, rest):
 
     if var.PHASE in var.GAME_PHASES:
         if var.PHASE == "join" or force:
-            stop_game(cli, log=False)
+            stop_game(log=False)
         else:
-            reply(cli, nick, chan, messages["stop_bot_ingame_safeguard"].format(
+            reply(source, target, messages["stop_bot_ingame_safeguard"].format(
                 what="restart", cmd="frestart", prefix=botconfig.CMD_CHAR), private=True)
             return
 
-    reset_modes_timers(cli)
+    reset_modes_timers()
     db.set_pre_restart_state(list_players())
     reset()
 
     msg = "{0} restart from {1}".format(
-        "Scheduled" if restart_program.aftergame else "Forced", nick)
+        "Scheduled" if restart_program.aftergame else "Forced", source.nick)
 
-    rest = rest.strip()
+    message = message.strip()
     mode = None
 
-    if rest:
-        args = rest.split()
+    if message:
+        args = message.split()
         first_arg = args[0].lower()
 
         if first_arg.endswith("mode") and first_arg != "mode":
             mode = first_arg.replace("mode", "")
 
-            VALID_MODES = ("normal", "verbose", "debug")
+            valid_modes = {"normal", "verbose", "debug"}
 
-            if mode not in VALID_MODES:
-                err_msg = messages["invalid_mode"].format(mode, ", ".join(VALID_MODES))
-                reply(cli, nick, chan, err_msg, private=True)
-
+            if mode not in valid_modes:
+                err_msg = messages["invalid_mode"].format(mode, ", ".join(valid_modes))
+                reply(source, target, err_msg, private=True)
                 return
 
             msg += " in {0} mode".format(mode)
-            rest = " ".join(args[1:])
+            message = " ".join(args[1:])
 
-    if rest:
-        msg += " ({0})".format(rest)
+    if message:
+        msg += " ({0})".format(message)
 
-    cli.quit(msg.format(nick, rest.strip()))
+    hooks.quit(source, msg.format(source.nick, message.strip()))
 
-    @hook("quit")
-    def restart_buffer(cli, raw_nick, reason):
-        nick, _, __, host = parse_nick(raw_nick)
+    @event_listener("server_quit")
+    def restart_buffer(var, val, reason):
         # restart the bot once our quit message goes though to ensure entire IRC queue is sent
-        # if the bot is using a nick that isn't botconfig.NICK, then stop breaking things and fdie
-        if nick == botconfig.NICK:
-            _restart_program(cli, mode)
+        if val is user.Bot:
+            _restart_program(mode)
 
     # This is checked in the on_error handler. Some IRCds, such as InspIRCd, don't send the bot
     # its own QUIT message, so we need to use ERROR. Ideally, we shouldn't even need the above
