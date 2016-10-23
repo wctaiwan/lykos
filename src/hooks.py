@@ -200,7 +200,8 @@ def on_ping(cli, prefix, server):
 
     """
 
-    cli.send("PONG", server)
+    with cli:
+        cli.send("PONG", server)
 
 ### Fetch and store server information
 
