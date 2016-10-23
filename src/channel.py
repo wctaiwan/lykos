@@ -45,6 +45,13 @@ class Channel(IRCContext):
         self.timestamp = None
         self.state = 0
 
+    def __del__(self):
+        self.users.clear()
+        self.modes.clear()
+        self.state = -2
+        self.client = None
+        self.timestamp = None
+
     def __str__(self):
         return "{self.__class__.__name__}: {self.name} ({_states[self.state]})".format(self=self)
 
@@ -155,4 +162,22 @@ class Channel(IRCContext):
                     if c in all_set:
                         i += 1 # -k needs a target, but we don't care about it
                     del self.modes[c]
+
+    def remove_user(self, val):
+        self.users.remove(val)
+        for mode in Features["PREFIX"].values():
+            if mode in self.modes:
+                self.modes[mode].discard(val)
+                if not self.modes[mode]:
+                    del self.modes[mode]
+        del val.channels[self]
+
+    def clear(self):
+        for val in self.users:
+            del val.channels[self]
+        self.users.clear()
+        self.modes.clear()
+        self.state = -1
+        self.timestamp = None
+        del all_channels[self.name]
 
