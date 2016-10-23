@@ -419,196 +419,171 @@ def restart_program(var, source, target, message):
 
 
 @cmd("ping", pm=True)
-def pinger(cli, nick, chan, rest):
+def pinger(var, source, target, message):
     """Check if you or the bot is still connected."""
-    reply(cli, nick, chan, random.choice(messages["ping"]).format(
-        nick=nick,
-        bot_nick=botconfig.NICK,
+    reply(source, target, random.choice(messages["ping"]).format(
+        nick=source.nick,
+        bot_nick=user.Bot.nick,
         cmd_char=botconfig.CMD_CHAR,
         goat_action=random.choice(messages["goat_actions"])))
 
-@cmd("simple", raw_nick=True, pm=True)
-def mark_simple_notify(cli, nick, chan, rest):
-    """Makes the bot give you simple role instructions, in case you are familiar with the roles."""
+@cmd("simple", pm=True)
+def mark_simple_notify(var, source, target, message):
+    """Make the bot give you simple role instructions, in case you are familiar with the roles."""
 
-    nick, _, ident, host = parse_nick(nick)
-    if nick in var.USERS:
-        ident = irc_lower(var.USERS[nick]["ident"])
-        host = var.USERS[nick]["host"].lower()
-        acc = irc_lower(var.USERS[nick]["account"])
-    else:
-        acc = None
-    if not acc or acc == "*":
-        acc = None
+    if source.account is not None: # Prioritize account
+        if source.account in var.SIMPLE_NOTIFY_ACCS:
+            var.SIMPLE_NOTIFY_ACCS.remove(source.account)
+            db.toggle_simple(source.account, None)
+            if source.host in var.SIMPLE_NOTIFY:
+                var.SIMPLE_NOTIFY.remove(source.host)
+                db.toggle_simple(None, source.host)
+            if source.userhost in var.SIMPLE_NOTIFY:
+                var.SIMPLE_NOTIFY.remove(source.userhost)
+                db.toggle_simple(None, source.userhost)
 
-    if acc: # Prioritize account
-        if acc in var.SIMPLE_NOTIFY_ACCS:
-            var.SIMPLE_NOTIFY_ACCS.remove(acc)
-            db.toggle_simple(acc, None)
-            if host in var.SIMPLE_NOTIFY:
-                var.SIMPLE_NOTIFY.remove(host)
-                db.toggle_simple(None, host)
-            fullmask = ident + "@" + host
-            if fullmask in var.SIMPLE_NOTIFY:
-                var.SIMPLE_NOTIFY.remove(fullmask)
-                db.toggle_simple(None, fullmask)
-
-            reply(cli, nick, chan, messages["simple_off"], private=True)
+            reply(source, target, messages["simple_off"], private=True)
             return
 
-        var.SIMPLE_NOTIFY_ACCS.add(acc)
-        db.toggle_simple(acc, None)
+        var.SIMPLE_NOTIFY_ACCS.add(source.account)
+        db.toggle_simple(source.account, None)
     elif var.ACCOUNTS_ONLY:
-        reply(cli, nick, chan, messages["not_logged_in"], private=True)
+        reply(source, target, messages["not_logged_in"], private=True)
         return
 
     else: # Not logged in, fall back to ident@hostmask
-        if host in var.SIMPLE_NOTIFY:
-            var.SIMPLE_NOTIFY.remove(host)
-            db.toggle_simple(None, host)
+        if source.host in var.SIMPLE_NOTIFY:
+            var.SIMPLE_NOTIFY.remove(source.host)
+            db.toggle_simple(None, source.host)
 
-            reply(cli, nick, chan, messages["simple_off"], private=True)
+            reply(source, target, messages["simple_off"], private=True)
             return
 
-        fullmask = ident + "@" + host
-        if fullmask in var.SIMPLE_NOTIFY:
-            var.SIMPLE_NOTIFY.remove(fullmask)
-            db.toggle_simple(None, fullmask)
+        if source.userhost in var.SIMPLE_NOTIFY:
+            var.SIMPLE_NOTIFY.remove(source.userhost)
+            db.toggle_simple(None, source.userhost)
 
-            reply(cli, nick, chan, messages["simple_off"], private=True)
+            reply(source, target, messages["simple_off"], private=True)
             return
 
-        var.SIMPLE_NOTIFY.add(fullmask)
-        db.toggle_simple(None, fullmask)
+        var.SIMPLE_NOTIFY.add(source.userhost)
+        db.toggle_simple(None, source.userhost)
 
-    reply(cli, nick, chan, messages["simple_on"], private=True)
+    reply(source, target, messages["simple_on"], private=True)
 
-@cmd("notice", raw_nick=True, pm=True)
-def mark_prefer_notice(cli, nick, chan, rest):
-    """Makes the bot NOTICE you for every interaction."""
+@cmd("notice", pm=True)
+def mark_prefer_notice(var, source, target, message):
+    """Make the bot NOTICE you for every interaction."""
 
-    nick, _, ident, host = parse_nick(nick)
-
-    if chan == nick and rest:
+    if not target.is_channel and message:
         # Ignore if called in PM with parameters, likely a message to wolfchat
         # and not an intentional invocation of this command
         return
 
-    if nick in var.USERS:
-        ident = irc_lower(var.USERS[nick]["ident"])
-        host = var.USERS[nick]["host"].lower()
-        acc = irc_lower(var.USERS[nick]["account"])
-    else:
-        acc = None
-    if not acc or acc == "*":
-        acc = None
+    if source.account and not var.DISABLE_ACCOUNTS: # Do things by account if logged in
+        if source.account in var.PREFER_NOTICE_ACCS:
+            var.PREFER_NOTICE_ACCS.remove(source.account)
+            db.toggle_notice(source.account, None)
+            if source.host in var.PREFER_NOTICE:
+                var.PREFER_NOTICE.remove(source.host)
+                db.toggle_notice(None, source.host)
+            if source.userhost in var.PREFER_NOTICE:
+                var.PREFER_NOTICE.remove(source.userhost)
+                db.toggle_notice(None, source.userhost)
 
-    if acc and not var.DISABLE_ACCOUNTS: # Do things by account if logged in
-        if acc in var.PREFER_NOTICE_ACCS:
-            var.PREFER_NOTICE_ACCS.remove(acc)
-            db.toggle_notice(acc, None)
-            if host in var.PREFER_NOTICE:
-                var.PREFER_NOTICE.remove(host)
-                db.toggle_notice(None, host)
-            fullmask = ident + "@" + host
-            if fullmask in var.PREFER_NOTICE:
-                var.PREFER_NOTICE.remove(fullmask)
-                db.toggle_notice(None, fullmask)
-
-            reply(cli, nick, chan, messages["notice_off"], private=True)
+            reply(source, target, messages["notice_off"], private=True)
             return
 
-        var.PREFER_NOTICE_ACCS.add(acc)
-        db.toggle_notice(acc, None)
+        var.PREFER_NOTICE_ACCS.add(source.account)
+        db.toggle_notice(source.account, None)
     elif var.ACCOUNTS_ONLY:
-        reply(cli, nick, chan, messages["not_logged_in"], private=True)
+        reply(source, target, messages["not_logged_in"], private=True)
         return
 
     else: # Not logged in
-        if host in var.PREFER_NOTICE:
-            var.PREFER_NOTICE.remove(host)
-            db.toggle_notice(None, host)
+        if source.host in var.PREFER_NOTICE:
+            var.PREFER_NOTICE.remove(source.host)
+            db.toggle_notice(None, source.host)
 
-            reply(cli, nick, chan, messages["notice_off"], private=True)
+            reply(source, target, messages["notice_off"], private=True)
             return
-        fullmask = ident + "@" + host
-        if fullmask in var.PREFER_NOTICE:
-            var.PREFER_NOTICE.remove(fullmask)
-            db.toggle_notice(None, fullmask)
+        if source.userhost in var.PREFER_NOTICE:
+            var.PREFER_NOTICE.remove(source.userhost)
+            db.toggle_notice(None, source.userhost)
 
-            reply(cli, nick, chan, messages["notice_off"], private=True)
+            reply(source, target, messages["notice_off"], private=True)
             return
 
-        var.PREFER_NOTICE.add(fullmask)
-        db.toggle_notice(None, fullmask)
+        var.PREFER_NOTICE.add(source.userhost)
+        db.toggle_notice(None, source.userhost)
 
-    reply(cli, nick, chan, messages["notice_on"], private=True)
+    reply(source, target, messages["notice_on"], private=True)
 
 @cmd("swap", "replace", pm=True, phases=("join", "day", "night"))
-def replace(cli, nick, chan, rest):
+def replace(var, source, target, message):
     """Swap out a player logged in to your account."""
-    if nick not in var.USERS or not var.USERS[nick]["inchan"]:
+    if source not in channel.Main.users:
         pm(cli, nick, messages["invalid_channel"].format(botconfig.CHANNEL))
         return
 
-    if nick in list_players():
-        reply(cli, nick, chan, messages["already_playing"].format("You"), private=True)
+    if source in list_players():
+        reply(source, target, messages["already_playing"].format("You"), private=True)
         return
 
-    account = irc_lower(var.USERS[nick]["account"])
+    temp = source.lower()
 
-    if not account or account == "*":
-        reply(cli, nick, chan, messages["not_logged_in"], private=True)
+    if not temp.account:
+        reply(source, target, messages["not_logged_in"], private=True)
         return
 
-    rest = rest.split()
+    rest = message.split()
 
     if not rest: # bare call
-        target = None
+        to_change = None
 
-        for user in var.USERS:
-            if irc_lower(var.USERS[user]["account"]) == account:
-                if user == nick or user not in list_participants():
-                    pass
-                elif target is None:
-                    target = user
+        for val in channel.Main.users:
+            if user.lower(val.account) == temp.account:
+                if val is source or val not in list_participants():
+                    continue
+                elif to_change is None:
+                    to_change = val
                 else:
-                    reply(cli, nick, chan, messages["swap_notice"].format(botconfig.CMD_CHAR), private=True)
+                    reply(source, target, messages["swap_notice"].format(botconfig.CMD_CHAR), private=True)
                     return
 
-        if target is None:
-            msg = messages["account_not_playing"]
-            reply(cli, nick, chan, msg, private=True)
+        if to_change is None:
+            reply(source, target, messages["account_not_playing"], private=True)
             return
     else:
-        pl = list_participants()
-        pll = [irc_lower(i) for i in pl]
+        pl = [participant.lower() for participant in list_participants()]
 
-        target, _ = complete_match(irc_lower(rest[0]), pll)
+        to_change, _ = complete_match(user.lower(rest[0]), pl, context=True)
 
-        if target is not None:
-            target = pl[pll.index(target)]
+        if to_change is not None:
+            to_change = to_change.ref
 
-        if target not in pl or target not in var.USERS:
-            msg = messages["target_not_playing"].format(" longer" if target in var.DEAD else "t")
-            reply(cli, nick, chan, msg, private=True)
+        if to_change not in pl:
+            msg = messages["target_not_playing"].format(" longer" if to_change in var.DEAD else "t")
+            reply(source, target, msg, private=True)
             return
 
-        if var.USERS[target]["account"] == "*":
-            reply(cli, nick, chan, messages["target_not_logged_in"], private=True)
+        if to_change.account is None:
+            reply(source, target, messages["target_not_logged_in"], private=True)
             return
 
-    if irc_lower(var.USERS[target]["account"]) == account and nick != target:
-        rename_player(cli, target, nick)
+    if user.lower(to_change.account) == temp.account and source is not to_change:
+        rename_player(to_change, source)
         # Make sure to remove player from var.DISCONNECTED if they were in there
         if var.PHASE in var.GAME_PHASES:
-            return_to_village(cli, chan, target, False)
+            return_to_village(target, to_change, False)
 
         if not var.DEVOICE_DURING_NIGHT or var.PHASE != "night":
-            mass_mode(cli, [("-v", target), ("+v", nick)], [])
+            mode = hooks.Features["PREFIX"]["+"]
+            channel.Main.mode(("-" + mode, to_change.nick), ("+" + mode, source.nick))
 
-        cli.msg(botconfig.CHANNEL, messages["player_swap"].format(nick, target))
-        myrole.caller(cli, nick, chan, "")
+        channel.Main.send(messages["player_swap"].format(source.nick, to_change.nick))
+        myrole.caller(var, source, target, "")
+
 
 @cmd("pingif", "pingme", "pingat", "pingpref", pm=True)
 def altpinger(cli, nick, chan, rest):
