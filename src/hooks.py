@@ -496,3 +496,101 @@ def on_nick_change(cli, old_nick, nick):
 
     Event("nick_change", {}).dispatch(var, val, old_nick)
 
+### JOIN handling
+
+@hook("join")
+def join_chan(cli, rawnick, chan, account=None, realname=None):
+    """Handle a user joining a channel, which may be the bot itself.
+
+    Ordering and meaning of arguments for a channel JOIN:
+
+    0 - The IRCClient instance (like everywhere else)
+    1 - The raw nick (nick!ident@host) of the user joining the channel
+    2 - The channel the user joined
+
+    The following two arguments are optional and only present if the
+    server supports the extended-join capability (we will have requested
+    it when we connected if it was supported):
+
+    3 - The account the user is identified to, or "*" if none
+    4 - The realname (gecos) of the user, or "" if none
+
+    """
+
+    if account == "*":
+        account = None
+
+    if realname == "":
+        realname = None
+
+    ch = channel.add(chan, cli)
+    val = user.get(rawnick, account=account, realname=realname, allow_none=True, raw_nick=True)
+    if val is user.Bot:
+        ch.state = 2
+        ch.mode()
+        ch.mode(Features["CHANMODES"][0])
+        who(cli, chan)
+
+    elif val is None:
+        val = user.add(nick=rawnick, account=account, realname=realname, raw_nick=True)
+
+    ch.users.add(val)
+    val.channels[ch] = set()
+
+    Event("chan_join", {}).dispatch(var, ch, val)
+
+### PART handling
+
+@hook("part")
+def part_chan(cli, rawnick, chan, reason=""):
+    """Handle a user leaving a channel, which may be the bot itself.
+
+    Ordering and meaning of arguments for a channel PART:
+
+    0 - The IRCClient instance (like everywhere else)
+    1 - The raw nick (nick!ident@host) of the user leaving the channel
+    2 - The channel being left
+
+    The following argument may or may not be present:
+
+    3 - The reason the user gave for parting (if any)
+
+    """
+
+    ch = channel.add(chan, cli)
+    val = user.get(rawnick, allow_bot=True, raw_nick=True)
+
+    if val is user.Bot: # oh snap! we're no longer in the channel!
+        ch.clear()
+    else:
+        ch.remove_user(val)
+
+    Event("chan_part", {}).dispatch(var, ch, val, reason)
+
+### KICK handling
+
+@hook("kick")
+def kicked_from_chan(cli, rawnick, chan, target, reason):
+    """Handle a user being kicked from a channel.
+
+    Ordering and meaning of arguments for a channel KICK:
+
+    0 - The IRCClient instance (like everywhere else)
+    1 - The raw nick (nick!ident@host) of the user performing the kick
+    2 - The channel the kick was performed on
+    3 - The target of the kick
+    4 - The reason given for the kick (always present)
+
+    """
+
+    ch = channel.add(chan, cli)
+    actor = user.get(rawnick, allow_bot=True, raw_nick=True)
+    val = user.get(target, allow_bot=True)
+
+    if val is user.Bot:
+        ch.clear()
+    else:
+        ch.remove_user(val)
+
+    Event("chan_kick", {}).dispatch(var, ch, actor, val, reason)
+
