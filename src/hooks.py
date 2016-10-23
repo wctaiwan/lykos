@@ -6,6 +6,8 @@ further in the relevant hook functions.
 
 """
 
+import time
+
 from src.decorators import hook
 from src.context import Features
 from src.events import Event
