@@ -12,7 +12,7 @@ from src import proxy, debuglog
 from src.events import Event
 from src.messages import messages
 
-__all__ = ["pm", "is_fake_nick", "mass_privmsg", "reply",
+__all__ = ["pm", "is_fake_nick", "reply",
            "is_user_simple", "is_user_notice", "in_wolflist",
            "relay_wolfchat_command", "chk_nightdone", "chk_decision",
            "chk_win", "is_role", "plural", "singular", "list_players",
@@ -33,48 +33,6 @@ def pm(cli, target, message):
     cli.msg(target, message)
 
 is_fake_nick = re.compile(r"^[0-9]+$").search
-
-def mass_privmsg(cli, targets, msg, notice=False, privmsg=False):
-    if not targets:
-        return
-    if not notice and not privmsg:
-        msg_targs = []
-        not_targs = []
-        for target in targets:
-            if is_fake_nick(target):
-                debuglog("Would message fake nick {0}: {1!r}".format(target, msg))
-            elif is_user_notice(target):
-                not_targs.append(target)
-            else:
-                msg_targs.append(target)
-        while msg_targs:
-            if len(msg_targs) <= var.MAX_PRIVMSG_TARGETS:
-                bgs = ",".join(msg_targs)
-                msg_targs = None
-            else:
-                bgs = ",".join(msg_targs[:var.MAX_PRIVMSG_TARGETS])
-                msg_targs = msg_targs[var.MAX_PRIVMSG_TARGETS:]
-            cli.msg(bgs, msg)
-        while not_targs:
-            if len(not_targs) <= var.MAX_PRIVMSG_TARGETS:
-                bgs = ",".join(not_targs)
-                not_targs = None
-            else:
-                bgs = ",".join(not_targs[:var.MAX_PRIVMSG_TARGETS])
-                not_targs = not_targs[var.MAX_PRIVMSG_TARGETS:]
-            cli.notice(bgs, msg)
-    else:
-        while targets:
-            if len(targets) <= var.MAX_PRIVMSG_TARGETS:
-                bgs = ",".join(targets)
-                targets = None
-            else:
-                bgs = ",".join(targets[:var.MAX_PRIVMSG_TARGETS])
-                target = targets[var.MAX_PRIVMSG_TARGETS:]
-            if notice:
-                cli.notice(bgs, msg)
-            else:
-                cli.msg(bgs, msg)
 
 # Decide how to reply to a user, depending on the channel / query it was called in, and whether a game is running and they are playing
 def reply(source, target, message, *, private=False, prefix_nick=False):

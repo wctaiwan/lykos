@@ -1,9 +1,9 @@
-from src.context import IRCContext
-
+from collections import defaultdict
 from weakref import WeakSet
 import fnmatch
 import re
 
+from src.context import IRCContext
 Bot = None # bot instance
 
 all_users = WeakSet()
@@ -185,6 +185,8 @@ class User(IRCContext):
 
     is_user = True
 
+    _messages = defaultdict(list)
+
     def __init__(self, cli, nick, ident, host, realname, account, channels):
         super().__init__(nick, cli)
         self.nick = nick
@@ -242,6 +244,23 @@ class User(IRCContext):
         if is_notice and not is_privmsg: # still to do
             return "NOTICE"
         return "PRIVMSG"
+
+    def queue_message(self, message):
+        self._messages[message].append(self)
+
+    @classmethod
+    def send_messages(cls, *, notice=False, privmsg=False):
+        for message, targets in cls._messages.items():
+            send_types = defaultdict(list)
+            for target in targets:
+                send_types[target.get_send_type(is_notice=notice, is_privmsg=privmsg)].append(target)
+            for send_type, targets in send_types.items():
+                max_targets = Features["TARGMAX"][send_type]
+                while targets:
+                    using, targets = targets[:max_targets], targets[max_targets:]
+                    cls.raw_send(message, targets[0].client, send_type, ",".join([t.nick for t in using]))
+
+        cls._messages.clear()
 
     @property
     def nick(self): # name should be the same as nick (for length calculation)
