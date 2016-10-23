@@ -162,7 +162,7 @@ class IRCClient:
                 try:
                     self.socket = socket.create_connection(("{0}".format(self.host), self.port))
                     break
-                except socket.error as e:
+                except OSError as e:
                     retries += 1
                     self.stream_handler('Error: {0}'.format(e), level="warning")
                     if retries > 3:
@@ -188,20 +188,17 @@ class IRCClient:
             if self.connect_cb:
                 try:
                     self.connect_cb(self)
-                except Exception as e:
-                    sys.stderr.write(traceback.format_exc())
-                    raise e
+                except Exception:
+                    traceback.print_exc()
+                    raise
 
             buffer = b""
             while not self._end:
                 try:
                     buffer += self.socket.recv(1024)
-                except socket.error as e:
-                    if False and not self.blocking and e.errno == 11:
-                        pass
-                    else:
-                        sys.stderr.write(traceback.format_exc())
-                        raise e
+                except OSError: # do we really need to catch-print-raise ?
+                    traceback.print_exc()
+                    raise
                 else:
                     data = buffer.split(b"\n")
                     buffer = data.pop()
@@ -222,15 +219,15 @@ class IRCClient:
                                 self.command_handler[command](self, prefix, *fargs)
                             elif "" in self.command_handler:
                                 self.command_handler[""](self, prefix, command, *fargs)
-                        except Exception as e:
-                            sys.stderr.write(traceback.format_exc())
-                            raise e  # ?
                 yield True
         finally:
             if self.socket:
                 self.stream_handler('closing socket')
                 self.socket.close()
                 yield False
+                        except Exception:
+                            traceback.print_exc()
+                            raise
     def nick(self, nick):
         self.send("NICK {0}".format(nick))
     def cap(self, req):
