@@ -597,21 +597,17 @@ def kicked_from_chan(cli, rawnick, chan, target, reason):
 
 ### QUIT handling
 
-def quit(message=""):
+def quit(context, message=""):
     """Quit the bot from IRC."""
 
-    if channel.Main is None or channel.Main.state < 0:
-        return
+    cli = context.client
 
-    cli = channel.Main.client
     if cli is None:
         plog("Tried to QUIT but everything was being torn down.")
         return
 
     with cli:
         cli.send("QUIT :{0}".format(message))
-
-    channel.Main.state = -3
 
 @hook("quit")
 def on_quit(cli, rawnick, reason):

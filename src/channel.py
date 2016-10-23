@@ -8,7 +8,7 @@ Main = None # main channel
 
 all_channels = {}
 
-_states = ("not yet joined", "pending join", "joined", "pending leave", "left channel", "", "quit", "deleted", "cleared")
+_states = ("not yet joined", "pending join", "joined", "pending leave", "left channel", "", "deleted", "cleared")
 
 def _strip(name):
     return name.lstrip("".join(Features["STATUSMSG"]))
