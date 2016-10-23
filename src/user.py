@@ -306,7 +306,15 @@ class User(IRCContext):
     @rawnick.setter
     def rawnick(self, rawnick):
         self.nick, self.ident, self.host = parse_rawnick(rawnick)
-        
+
+    @property
+    def userhost(self):
+        return "{self.ident}@{self.host}".format(self=self)
+
+    @userhost.setter
+    def userhost(self, userhost):
+        nick, self.ident, self.host = parse_rawnick(userhost)
+
 class FakeUser(User):
 
     is_fake = True
@@ -324,3 +332,11 @@ class FakeUser(User):
     @rawnick.setter
     def rawnick(self, rawnick):
         self.nick = parse_rawnick_as_dict(rawnick)["nick"]
+
+    @property
+    def userhost(self):
+        return "" # we don't have a userhost
+
+    @userhost.setter
+    def userhost(self, userhost):
+        pass # don't do anything
