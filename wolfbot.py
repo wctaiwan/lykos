@@ -68,7 +68,7 @@ def main():
                      stream_handler=src.stream,
                      encoding="utf-8",
     )
-    cli.mainLoop()
+    cli.connect()
 
 
 if __name__ == "__main__":

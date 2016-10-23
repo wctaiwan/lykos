@@ -109,6 +109,17 @@ class IRCClient:
         self.command_handler = cmd_handler
         self._end = 0
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc, value, tb):
+        if exc is value is tb is None:
+            return
+
+        if exc is OSError and self.socket.fileno() == -1:
+            self.steam_handler("Tried to perform an operation on a closed socket.")
+            return True
+
     def send(self, *args, **kwargs):
         """ send a message to the connected server. all arguments are joined
         with a space for convenience, for example the following are identical
@@ -156,7 +167,7 @@ class IRCClient:
         ...     next(g)
 
         """
-        try:
+        with self:
             retries = 0
             while True:
                 try:
@@ -219,15 +230,17 @@ class IRCClient:
                                 self.command_handler[command](self, prefix, *fargs)
                             elif "" in self.command_handler:
                                 self.command_handler[""](self, prefix, command, *fargs)
-                yield True
-        finally:
-            if self.socket:
-                self.stream_handler('closing socket')
-                self.socket.close()
-                yield False
                         except Exception:
                             traceback.print_exc()
                             raise
+
+        if self.socket:
+            self.stream_handler("Closing socket.")
+            self.socket.close()
+
+        self.stream_handler("Calling sys.exit()...", level="warning")
+        sys.exit()
+
     def nick(self, nick):
         self.send("NICK {0}".format(nick))
     def cap(self, req):
@@ -246,9 +259,3 @@ class IRCClient:
             self.msg(nickserv, command.format(nick=self.nickname))
     def user(self, ident, rname):
         self.send("USER", ident, self.host, self.host, ":{0}".format(rname or ident))
-    def mainLoop(self):
-        conn = self.connect()
-        while True:
-            if not next(conn):
-                self.stream_handler("Calling sys.exit()...", level="warning")
-                sys.exit()
