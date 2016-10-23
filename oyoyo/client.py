@@ -231,41 +231,8 @@ class IRCClient:
                 self.stream_handler('closing socket')
                 self.socket.close()
                 yield False
-    def msg(self, user, msg):
-        for line in msg.split('\n'):
-            maxchars = 494 - len(self.nickname+self.ident+self.hostmask+user)
-            while line:
-                extra = ""
-                if len(line) > maxchars:
-                    extra = line[maxchars:]
-                    line = line[:maxchars]
-                self.send("PRIVMSG", user, ":{0}".format(line))
-                line = extra
-    privmsg = msg  # Same thing
-    def notice(self, user, msg):
-        for line in msg.split('\n'):
-            maxchars = 495 - len(self.nickname+self.ident+self.hostmask+user)
-            while line:
-                extra = ""
-                if len(line) > maxchars:
-                    extra = line[maxchars:]
-                    line = line[:maxchars]
-                self.send("NOTICE", user, ":{0}".format(line))
-                line = extra
-    def join(self, channel):
-        self.send("JOIN {0}".format(channel))
-    def quit(self, msg=""):
-        self.send("QUIT :{0}".format(msg))
-    def part(self, chan, msg=""):
-        self.send("PART {0} :{1}".format(chan, msg))
-    def mode(self, *args):
-        self.send("MODE {0}".format(" ".join(args)))
-    def kick(self, chan, nick, msg=""):
-        self.send("KICK", chan, nick, ":"+msg)
     def nick(self, nick):
         self.send("NICK {0}".format(nick))
-    def who(self, *args):
-        self.send("WHO {0}".format(" ".join(args)))
     def cap(self, req):
         self.send("CAP {0}".format(req))
     def ns_identify(self, account, passwd, nickserv, command):
