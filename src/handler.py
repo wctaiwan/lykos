@@ -92,9 +92,9 @@ def connect_callback(cli):
             channel.add(var.LOG_CHANNEL, cli)
 
         if var.CHANSERV:
-            hooks.who(cli, var.CHANSERV)
+            hooks.bare_who(cli, var.CHANSERV)
         if var.NICKSERV:
-            hooks.who(cli, var.NICKSERV)
+            hooks.bare_who(cli, var.NICKSERV)
 
         auto_toggle_modes = set(var.AUTO_TOGGLE_MODES)
         var.AUTO_TOGGLE_MODES.clear()

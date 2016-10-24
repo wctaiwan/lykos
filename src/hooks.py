@@ -19,17 +19,8 @@ from src import channel, user, settings as var
 
 # Always use this function whenever sending out a WHO request!
 
-def who(cli, target, data=b""):
-    """Send a WHO request with respect to the server's capabilities.
-
-    To get the WHO replies, add an event listener for "who_result", and
-    an event listener for "who_end" for the end of WHO replies.
-
-    The return value of this function is an integer equal to the data
-    given. If the server supports WHOX, the same integer will be in the
-    event.params.data attribute. Otherwise, this attribute will be 0.
-
-    """
+def bare_who(cli, target, data=b""):
+    """Handle WHO requests."""
 
     if isinstance(data, str):
         data = data.encode(Features["CHARSET"])
@@ -48,6 +39,20 @@ def who(cli, target, data=b""):
         cli.send("WHO", target)
 
     return int.from_bytes(data, "little")
+
+def who(target, data=b""):
+    """Send a WHO request with respect to the server's capabilities.
+
+    To get the WHO replies, add an event listener for "who_result", and
+    an event listener for "who_end" for the end of WHO replies.
+
+    The return value of this function is an integer equal to the data
+    given. If the server supports WHOX, the same integer will be in the
+    event.params.data attribute. Otherwise, this attribute will be 0.
+
+    """
+
+    return bare_who(target.client, target.name, data)
 
 @hook("whoreply")
 def who_reply(cli, bot_server, bot_nick, chan, ident, host, server, nick, status, hopcount_gecos):
@@ -530,7 +535,7 @@ def join_chan(cli, rawnick, chan, account=None, realname=None):
         ch.state = 2
         ch.mode()
         ch.mode(Features["CHANMODES"][0])
-        who(cli, chan)
+        who(ch)
 
     elif val is None:
         val = user.add(nick=rawnick, account=account, realname=realname, raw_nick=True)
