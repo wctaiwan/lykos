@@ -10,7 +10,8 @@ from datetime import datetime, timedelta
 
 import botconfig
 import src.settings as var
-from src.utilities import irc_lower, break_long_message, role_order, singular
+from src.utilities import break_long_message, role_order, singular
+from src.user import lower
 
 # increment this whenever making a schema change so that the schema upgrade functions run on start
 # they do not run by default for performance reasons
@@ -60,7 +61,7 @@ def init_vars():
 
         for acc, host, notice, simple, dc, pi, stasis, stasisexp, flags in c:
             if acc is not None:
-                acc = irc_lower(acc)
+                acc = lower(acc)
                 if simple == 1:
                     var.SIMPLE_NOTIFY_ACCS.add(acc)
                 if notice == 1:
@@ -78,7 +79,7 @@ def init_vars():
                 # nick!ident lowercased per irc conventions, host uses normal casing
                 try:
                     hl, hr = host.split("@", 1)
-                    host = irc_lower(hl) + "@" + hr.lower()
+                    host = lower(hl) + "@" + hr.lower()
                 except ValueError:
                     host = host.lower()
                 if simple == 1:
@@ -115,10 +116,10 @@ def init_vars():
                        )""")
         for acc, host, command in c:
             if acc is not None:
-                acc = irc_lower(acc)
+                acc = lower(acc)
                 var.DENY_ACCS[acc].add(command)
             if host is not None:
-                host = irc_lower(host)
+                host = lower(host)
                 var.DENY[host].add(command)
 
 def decrement_stasis(acc=None, hostmask=None):
