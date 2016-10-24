@@ -18,7 +18,10 @@ def on_privmsg(cli, rawnick, chan, msg, *, notice=False):
                     (user.equals(chan, user.Bot.nick) and not botconfig.ALLOW_PRIVATE_NOTICE_COMMANDS))):
         return  # not allowed in settings
 
-    source = user.get(rawnick, raw_nick=True)
+    source = user.get(rawnick, raw_nick=True, allow_none=True)
+
+    if source is None:
+        return # don't do anything if we don't know the user
 
     if user.equals(chan, user.Bot.nick):
         target = source
