@@ -584,20 +584,14 @@ def replace(var, source, target, message):
         channel.Main.send(messages["player_swap"].format(source.nick, to_change.nick))
         myrole.caller(var, source, target, "")
 
-
 @cmd("pingif", "pingme", "pingat", "pingpref", pm=True)
-def altpinger(cli, nick, chan, rest):
+def altpinger(var, source, target, message):
     """Pings you when the number of players reaches your preference. Usage: "pingif <players>". https://werewolf.chat/Pingif"""
-    players = is_user_altpinged(nick)
-    rest = rest.split()
-    if nick in var.USERS:
-        acc = irc_lower(var.USERS[nick]["account"])
-    else:
-        reply(cli, nick, chan, messages["invalid_channel"].format(botconfig.CHANNEL), private=True)
-        return
+    players = is_user_altpinged(var, source)
+    rest = message.split()
 
-    if (not acc or acc == "*") and var.ACCOUNTS_ONLY:
-        reply(cli, nick, chan, messages["not_logged_in"], private=True)
+    if not source.account and var.ACCOUNTS_ONLY:
+        reply(source, target, messages["not_logged_in"], private=True)
         return
 
     msg = []
@@ -613,7 +607,7 @@ def altpinger(cli, nick, chan, rest):
               len(rest) > 1 and rest[1].isdigit() and int(rest[1]) == 0)):
         if players:
             msg.append(messages["unset_pingif"].format(players))
-            toggle_altpinged_status(nick, 0, players)
+            toggle_altpinged_status(var, source, 0, players)
         else:
             msg.append(messages["no_pingif"])
 
@@ -628,82 +622,79 @@ def altpinger(cli, nick, chan, rest):
             msg.append(messages["pingif_already_set"].format(num))
         elif players:
             msg.append(messages["pingif_change"].format(players, num))
-            toggle_altpinged_status(nick, num, players)
+            toggle_altpinged_status(var, source, num, players)
         else:
             msg.append(messages["set_pingif"].format(num))
-            toggle_altpinged_status(nick, num)
+            toggle_altpinged_status(var, source, num)
 
     else:
         msg.append(messages["pingif_invalid"])
 
-    reply(cli, nick, chan, "\n".join(msg), private=True)
+    reply(source, target, "\n".join(msg), private=True)
 
-def is_user_altpinged(nick):
-    if nick in var.USERS.keys():
-        ident = irc_lower(var.USERS[nick]["ident"])
-        host = var.USERS[nick]["host"].lower()
-        acc = irc_lower(var.USERS[nick]["account"])
-    else:
-        return 0
-    if not var.DISABLE_ACCOUNTS and acc and acc != "*":
-        if acc in var.PING_IF_PREFS_ACCS.keys():
-            return var.PING_IF_PREFS_ACCS[acc]
+def is_user_altpinged(var, val):
+    temp = val.lower()
+    if not var.DISABLE_ACCOUNTS and temp.account is not None:
+        if temp.account in var.PING_IF_PREFS_ACCS:
+            return var.PING_IF_PREFS_ACCS[temp.account]
+
     elif not var.ACCOUNTS_ONLY:
         for hostmask, pref in var.PING_IF_PREFS.items():
-            if match_hostmask(hostmask, nick, ident, host):
+            if user.match_hostmask(hostmask, val):
                 return pref
+
     return 0
 
-def toggle_altpinged_status(nick, value, old=None):
-    # nick should be in var.USERS if not fake; if not, let the error propagate
-    ident = irc_lower(var.USERS[nick]["ident"])
-    host = var.USERS[nick]["host"].lower()
-    acc = irc_lower(var.USERS[nick]["account"])
-    if value == 0:
-        if not var.DISABLE_ACCOUNTS and acc and acc != "*":
-            if acc in var.PING_IF_PREFS_ACCS:
-                del var.PING_IF_PREFS_ACCS[acc]
-                db.set_pingif(0, acc, None)
+def toggle_altpinged_status(var, val, value, old=None):
+    temp = val.lower()
+
+    if not value:
+        if not var.DISABLE_ACCOUNTS and temp.account:
+            if temp.account in var.PING_IF_PREFS_ACCS:
+                del var.PING_IF_PREFS_ACCS[temp.account]
+                db.set_pingif(0, temp.account, None)
                 if old is not None:
                     with var.WARNING_LOCK:
                         if old in var.PING_IF_NUMS_ACCS:
-                            var.PING_IF_NUMS_ACCS[old].discard(acc)
+                            var.PING_IF_NUMS_ACCS[old].discard(temp.account)
+
         if not var.ACCOUNTS_ONLY:
-            for hostmask in list(var.PING_IF_PREFS.keys()):
-                if match_hostmask(hostmask, nick, ident, host):
+            for hostmask in list(var.PING_IF_PREFS):
+                if user.match_hostmask(hostmask, temp):
                     del var.PING_IF_PREFS[hostmask]
                     db.set_pingif(0, None, hostmask)
                     if old is not None:
                         with var.WARNING_LOCK:
-                            if old in var.PING_IF_NUMS.keys():
-                                var.PING_IF_NUMS[old].discard(host)
+                            if old in var.PING_IF_NUMS:
                                 var.PING_IF_NUMS[old].discard(hostmask)
+                                var.PING_IF_NUMS[old].discard(temp.host)
+
     else:
-        if not var.DISABLE_ACCOUNTS and acc and acc != "*":
-            var.PING_IF_PREFS_ACCS[acc] = value
-            db.set_pingif(value, acc, None)
+        if not var.DISABLE_ACCOUNTS and temp.account:
+            var.PING_IF_PREFS[temp.account] = value
+            db.set_pingif(value, temp.account, None)
             with var.WARNING_LOCK:
                 if value not in var.PING_IF_NUMS_ACCS:
                     var.PING_IF_NUMS_ACCS[value] = set()
-                var.PING_IF_NUMS_ACCS[value].add(acc)
+                var.PING_IF_NUMS_ACCS[value].add(temp.account)
                 if old is not None:
                     if old in var.PING_IF_NUMS_ACCS:
-                        var.PING_IF_NUMS_ACCS[old].discard(acc)
+                        var.PING_IF_NUMS_ACCS[old].discard(temp.account)
+
         elif not var.ACCOUNTS_ONLY:
-            hostmask = ident + "@" + host
-            var.PING_IF_PREFS[hostmask] = value
-            db.set_pingif(value, None, hostmask)
+            var.PING_IF_PREFS[temp.userhost] = value
+            db.set_pingif(value, None, temp.userhost)
             with var.WARNING_LOCK:
-                if value not in var.PING_IF_NUMS.keys():
+                if value not in var.PING_IF_NUMS:
                     var.PING_IF_NUMS[value] = set()
-                var.PING_IF_NUMS[value].add(hostmask)
+                var.PING_IF_NUMS[value].add(temp.userhost)
                 if old is not None:
-                    if old in var.PING_IF_NUMS.keys():
-                        var.PING_IF_NUMS[old].discard(host)
-                        var.PING_IF_NUMS[old].discard(hostmask)
+                    if old in var.PING_IF_NUMS:
+                        var.PING_IF_NUMS[old].discard(temp.host)
+                        var.PING_IF_NUMS[old].discard(temp.userhost)
 
 @handle_error
-def join_timer_handler(cli):
+def join_timer_handler(var):
     with var.WARNING_LOCK:
         var.PINGING_IFS = True
         to_ping = []
@@ -725,8 +716,8 @@ def join_timer_handler(cli):
 
         # Don't ping alt connections of users that have already joined
         if not var.DISABLE_ACCOUNTS:
-            for acc in (var.USERS[player]["account"] for player in pl if player in var.USERS):
-                var.PINGED_ALREADY_ACCS.add(irc_lower(acc))
+            for val in pl:
+                var.PINGED_ALREADY_ACCS.add(user.lower(val.account))
 
         # Remove players who have already been pinged from the list of possible players to ping
         for acc in frozenset(chk_acc):
@@ -742,62 +733,40 @@ def join_timer_handler(cli):
             var.PINGING_IFS = False
             return
 
-        @hook("whoreply", hookid=387)
-        def ping_altpingers_noacc(cli, svr, botnick, chan, ident, host, server, nick, status, rest):
-            if ("G" in status or is_user_stasised(nick) or not var.PINGING_IFS or
-                    nick == botnick or nick in pl):
+        def store_altpingers(evt, var, chan, val):
+            if evt.params.away or is_user_stasised(val) or not var.PINGING_IFS or val is user.Bot or val in pl:
                 return
 
-            ident = irc_lower(ident)
-            host = host.lower()
-            hostmask = ident + "@" + host
-            if hostmask in checker:
-                to_ping.append(nick)
-                var.PINGED_ALREADY.add(hostmask)
+            temp = val.lower()
 
-        @hook("whospcrpl", hookid=387)
-        def ping_altpingers(cli, server, nick, ident, host, _, user, status, acc):
-            if ("G" in status or is_user_stasised(user) or not var.PINGING_IFS or
-                user == botconfig.NICK or user in pl):
-
-                return
-
-            # Create list of players to ping
-            acc = irc_lower(acc)
-            ident = irc_lower(ident)
-            host = host.lower()
-            if acc and acc != "*":
-                if acc in chk_acc:
-                    to_ping.append(user)
-                    var.PINGED_ALREADY_ACCS.add(acc)
+            if temp.account:
+                if temp.account in chk_acc:
+                    to_ping.append(val)
+                    var.PINGED_ALREADY_ACCS.add(temp.account)
 
             elif not var.ACCOUNTS_ONLY:
-                hostmask = ident + "@" + host
-                to_ping.append(user)
-                var.PINGED_ALREADY.add(hostmask)
+                if temp.userhost in checker:
+                    to_ping.append(val)
+                    var.PINGED_ALREADY.add(temp.userhost)
 
-        @hook("endofwho", hookid=387)
-        def fetch_altpingers(*stuff):
-            # fun fact: if someone joined 10 seconds after someone else, the bot would break.
-            # effectively, the join would delete join_pinger from var.TIMERS and this function
-            # here would be reached before it was created again, thus erroring and crashing.
-            # this is one of the multiple reasons we need unit testing
-            # I was lucky to catch this in testing, as it requires precise timing
-            # it only failed if a join happened while this outer func had started
-            var.PINGING_IFS = False
-            hook.unhook(387)
-            if to_ping:
-                to_ping.sort(key=lambda x: x.lower())
+        def ping_altpingers(evt, var, target):
+            if target == channel.Main.name:
+                var.PINGING_IFS = False
+                if to_ping:
+                    to_ping.sort(key=lambda x: user.lower(x.nick))
 
-                msg_prefix = messages["ping_player"].format(len(pl), "" if len(pl) == 1 else "s")
-                msg = msg_prefix + break_long_message(to_ping).replace("\n", "\n" + msg_prefix)
+                    msg_prefix = messages["ping_player"].format(len(pl), "" if len(pl) == 1 else "s")
+                    msg = msg_prefix + break_long_message(to_ping).replace("\n", "\n" + msg_prefix)
 
-                cli.msg(botconfig.CHANNEL, msg)
+                    channel.Main.send(msg)
 
-        if not var.DISABLE_ACCOUNTS:
-            cli.who(botconfig.CHANNEL, "%uhsnfa")
-        else:
-            cli.who(botconfig.CHANNEL)
+                events.remove_listener("who_result", store_altpingers)
+                events.remove_listener("who_end", ping_altpingers)
+
+        events.add_listener("who_result", store_altpingers)
+        events.add_listener("who_end", ping_altpingers)
+
+        hooks.who(channel.Main)
 
 def get_deadchat_pref(nick):
     if nick in var.USERS:
@@ -1071,7 +1040,7 @@ def join_player(cli, player, chan, who=None, forced=False, *, sanity=True):
         if "join_pinger" in var.TIMERS:
             var.TIMERS["join_pinger"][0].cancel()
 
-        t = threading.Timer(10, join_timer_handler, (cli,))
+        t = threading.Timer(10, join_timer_handler, (var,))
         var.TIMERS["join_pinger"] = (t, time.time(), 10)
         t.daemon = True
         t.start()
