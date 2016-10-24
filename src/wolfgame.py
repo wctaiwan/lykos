@@ -271,18 +271,18 @@ reset()
 @cmd("fsync", flag="m", pm=True)
 def fsync(var, actor, target, message):
     """Makes the bot apply the currently appropriate channel modes."""
-    sync_modes()
+    sync_modes(var)
 
 @event_listener("mode_change")
-def check_for_sync_modes(actor, target):
+def check_for_sync_modes(var, actor, target):
     # Only sync modes if a server changed modes because
     # 1) human ops probably know better;
     # 2) other bots might start a fight over modes;
     # 3) recursion; we see our own mode changes.
     if actor is None:
-        sync_modes()
+        sync_modes(var)
 
-def sync_modes():
+def sync_modes(var):
     pl = list_players()
     mode = Features["PREFIX"]["+"]
     modes = []
@@ -523,7 +523,7 @@ def mark_prefer_notice(var, source, target, message):
 def replace(var, source, target, message):
     """Swap out a player logged in to your account."""
     if source not in channel.Main.users:
-        pm(cli, nick, messages["invalid_channel"].format(botconfig.CHANNEL))
+        source.send(messages["invalid_channel"].format(channel.Main.name))
         return
 
     if source in list_players():
@@ -575,7 +575,7 @@ def replace(var, source, target, message):
         rename_player(to_change, source)
         # Make sure to remove player from var.DISCONNECTED if they were in there
         if var.PHASE in var.GAME_PHASES:
-            return_to_village(target, to_change, False)
+            return_to_village(var, target, to_change, False)
 
         if not var.DEVOICE_DURING_NIGHT or var.PHASE != "night":
             mode = hooks.Features["PREFIX"]["+"]
