@@ -7,7 +7,7 @@ from src import decorators, wolfgame, hooks, channel, user, stream_handler as al
 
 hook = decorators.hook
 
-def on_privmsg(cli, rawnick, chan, msg, notice=False):
+def on_privmsg(cli, rawnick, chan, msg, *, notice=False):
     if notice and "!" not in rawnick or not rawnick: # server notice; we don't care about those
         return
 
