@@ -79,6 +79,9 @@ def who_reply(cli, bot_server, bot_nick, chan, ident, host, server, nick, status
 
     hop, realname = hopcount_gecos.split(None, 1)
     hop = int(hop)
+    # We throw away the information about the operness of the user, but we probably don't need to care about that
+    # We also don't directly pass which modes they have, since that's already on the channel/user
+    is_away = ("G" in status)
 
     ch = None
     modes = {Features["PREFIX"].get(s) for s in status} - {None}
@@ -102,7 +105,7 @@ def who_reply(cli, bot_server, bot_nick, chan, ident, host, server, nick, status
             ch.modes[mode] = set()
         ch.modes[mode].add(val)
 
-    event = Event("who_result", {}, status=status, data=0, ip_address=None, server=server, hop_count=hop, idle_time=None, extended_who=False)
+    event = Event("who_result", {}, away=is_away, data=0, ip_address=None, server=server, hop_count=hop, idle_time=None, extended_who=False)
     event.dispatch(var, ch, val)
 
 @hook("whospcrpl")
@@ -145,6 +148,7 @@ def extended_who_reply(cli, bot_server, bot_nick, data, chan, ident, ip_address,
 
     hop = int(hop)
     idle = int(idle)
+    is_away = ("G" in status)
 
     data = int.from_bytes(3, data.encode(Features["CHARSET"]), "little")
 
@@ -171,7 +175,7 @@ def extended_who_reply(cli, bot_server, bot_nick, data, chan, ident, ip_address,
             ch.modes[mode] = set()
         ch.modes[mode].add(val)
 
-    event = Event("who_result", {}, status=status, data=data, ip_address=ip_address, server=server, hop_count=hop, idle_time=idle, extended_who=True)
+    event = Event("who_result", {}, away=is_away, data=data, ip_address=ip_address, server=server, hop_count=hop, idle_time=idle, extended_who=True)
     event.dispatch(var, ch, val)
 
 @hook("endofwho")
