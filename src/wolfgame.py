@@ -63,7 +63,7 @@ var.LAST_TIME = None
 var.LAST_START = {}
 var.LAST_WAIT = {}
 
-var.USERS = {}
+var.USERS = {} # KILL IT! KILL IT WITH FIRE!
 
 var.ADMIN_PINGING = False
 var.SPECIAL_ROLES = {}
@@ -89,7 +89,7 @@ var.DISCONNECTED = {}  # players who got disconnected
 
 var.RESTARTING = False
 
-var.OPPED = False  # Keeps track of whether the bot is opped
+var.OPPED = False  # KILL THIS TOO
 
 var.BITTEN_ROLES = {}
 var.LYCAN_ROLES = {}
@@ -201,6 +201,16 @@ def connect_callback():
 
     accumulator = accumulate_cmodes()
     accumulator.send(None)
+
+    # TODO: Kill this handler, use the one in hooks
+    #@hook("mode", hookid=296)
+    #def on_give_me_ops(cli, nick, chan, modeaction, target="", *other):
+    #    if chan != botconfig.CHANNEL:
+    #        return
+    #    if modeaction == "-o" and target == botconfig.NICK:
+    #        var.OPPED = False
+    #        if var.CHANSERV_OP_COMMAND:
+    #            cli.msg(var.CHANSERV, var.CHANSERV_OP_COMMAND.format(channel=botconfig.CHANNEL))
 
 def reset_settings():
     var.CURRENT_GAMEMODE.teardown()
@@ -572,7 +582,7 @@ def replace(var, source, target, message):
             return
 
     if user.lower(to_change.account) == temp.account and source is not to_change:
-        rename_player(to_change, source)
+        rename_player(var, to_change, source)
         # Make sure to remove player from var.DISCONNECTED if they were in there
         if var.PHASE in var.GAME_PHASES:
             return_to_village(var, target, to_change, False)
@@ -1045,6 +1055,8 @@ def fjoin(var, source, target, message):
 
     if fake:
         target.send(messages["fjoin_success"].format(source.nick, len(list_players())))
+
+# Got here so far
 
 @cmd("fleave", "fquit", flag="A", pm=True, phases=("join", "day", "night"))
 def fleave(cli, nick, chan, rest):
@@ -2323,9 +2335,9 @@ def stop_game(cli, winner="", abort=False, additional_winners=None, log=True):
     # Message players in deadchat letting them know that the game has ended
     mass_privmsg(cli, var.DEADCHAT_PLAYERS, messages["endgame_deadchat"].format(chan))
 
-    reset_modes_timers(cli)
+    reset_modes_timers()
     reset()
-    expire_tempbans(cli)
+    expire_tempbans()
 
     # This must be after reset()
     if var.AFTER_FLASTGAME is not None:
@@ -2345,7 +2357,7 @@ def chk_win(cli, end_game=True, winner=None):
 
     if var.PHASE == "join":
         if lpl == 0:
-            reset_modes_timers(cli)
+            reset_modes_timers()
 
             reset()
 
@@ -3007,7 +3019,7 @@ def update_last_said(cli, nick, chan, rest):
 
     fullstring = "".join(rest)
 
-@hook("join")
+#@hook("join")
 def on_join(cli, raw_nick, chan, acc="*", rname=""):
     nick, _, ident, host = parse_nick(raw_nick)
     if nick == botconfig.NICK:
@@ -6313,7 +6325,7 @@ def reset_game(cli, nick, chan, rest):
         stop_game(cli, log=False)
     else:
         pl = list_players()
-        reset_modes_timers(cli)
+        reset_modes_timers()
         reset()
         cli.msg(botconfig.CHANNEL, "PING! {0}".format(" ".join(pl)))
 
@@ -6323,7 +6335,7 @@ def show_rules(cli, nick, chan, rest):
     """Displays the rules."""
     reply(cli, nick, chan, var.RULES)
 
-@cmd("help", raw_nick=True, pm=True)
+@cmd("help", pm=True) # raw_nick=True
 def get_help(cli, rnick, chan, rest):
     """Gets help."""
     nick, _, ident, host = parse_nick(rnick)
@@ -6443,7 +6455,7 @@ def on_invite(cli, raw_nick, something, chan):
         cli.join(chan) # Allows the bot to be present in any channel
         debuglog(nick, "INVITE", chan, display=True)
 
-@cmd("fpart", raw_nick=True, flag="A", pm=True)
+@cmd("fpart", flag="A", pm=True) # raw_nick=True
 def fpart(cli, rnick, chan, rest):
     """Makes the bot forcibly leave a channel."""
     nick = parse_nick(rnick)[0]
@@ -6736,7 +6748,7 @@ def myrole(cli, nick, chan, rest):
         message += "."
         pm(cli, nick, message)
 
-@cmd("faftergame", flag="D", raw_nick=True, pm=True)
+@cmd("faftergame", flag="D", pm=True) # raw_nick=True
 def aftergame(cli, rawnick, chan, rest):
     """Schedule a command to be run after the current game."""
     nick = parse_nick(rawnick)[0]
@@ -6770,7 +6782,7 @@ def aftergame(cli, rawnick, chan, rest):
     var.AFTER_FLASTGAME = do_action
 
 
-@cmd("flastgame", flag="D", raw_nick=True, pm=True)
+@cmd("flastgame", flag="D", pm=True) # raw_nick=True
 def flastgame(cli, rawnick, chan, rest):
     """Disables starting or joining a game, and optionally schedules a command to run after the current game ends."""
     nick, _, ident, host = parse_nick(rawnick)
@@ -6893,7 +6905,7 @@ def my_stats(cli, nick, chan, rest):
     player_stats.func(cli, nick, chan, " ".join([nick] + rest))
 
 # Called from !game and !join, used to vote for a game mode
-def vote_gamemode(cli, nick, chan, gamemode, doreply):
+def vote_gamemode(cli, nick, chan, gamemode, *, doreply):
     if var.FGAMED:
         if doreply:
             cli.notice(nick, messages["admin_forced_game"])
@@ -6921,7 +6933,7 @@ def vote_gamemode(cli, nick, chan, gamemode, doreply):
 def game(cli, nick, chan, rest):
     """Vote for a game mode to be picked."""
     if rest:
-        vote_gamemode(cli, nick, chan, rest.lower().split()[0], True)
+        vote_gamemode(cli, nick, chan, rest.lower().split()[0], do_reply=True)
     else:
         gamemodes = ", ".join("\u0002{0}\u0002".format(gamemode) if len(list_players()) in range(var.GAME_MODES[gamemode][1],
             var.GAME_MODES[gamemode][2]+1) else gamemode for gamemode in var.GAME_MODES.keys() if gamemode != "roles" and
@@ -7022,12 +7034,12 @@ def _say(cli, raw_nick, rest, command, action=False):
     cli.send("PRIVMSG {0} :{1}".format(target, message))
 
 
-@cmd("fsay", flag="s", raw_nick=True, pm=True)
+@cmd("fsay", flag="s", pm=True) # raw_nick=True
 def fsay(cli, raw_nick, chan, rest):
     """Talk through the bot as a normal message."""
     _say(cli, raw_nick, rest, "fsay")
 
-@cmd("fact", "fdo", "fme", flag="s", raw_nick=True, pm=True)
+@cmd("fact", "fdo", "fme", flag="s", pm=True) # raw_nick=True
 def fact(cli, raw_nick, chan, rest):
     """Act through the bot as an action."""
     _say(cli, raw_nick, rest, "fact", action=True)
@@ -7201,7 +7213,7 @@ if botconfig.DEBUG_MODE or botconfig.ALLOWED_NORMAL_MODE_COMMANDS:
             reply(cli, nick, chan, break_long_message(output, " | "), private=True)
 
 
-    @cmd("fgame", flag="d", raw_nick=True, phases=("join",))
+    @cmd("fgame", flag="d", phases=("join",)) # raw_nick=True
     def fgame(cli, nick, chan, rest):
         """Force a certain game mode to be picked. Disable voting for game modes upon use."""
         nick = parse_nick(nick)[0]
