@@ -59,7 +59,7 @@ def connect_callback(cli):
         alog("Received end of MOTD from {0}".format(prefix))
 
         # This callback only sets up event listeners
-        wolfgame.connect_callback(cli)
+        wolfgame.connect_callback()
 
         user.Bot = user.User(cli, botconfig.NICK, None, None, None, None, {})
         user.Bot.modes = set() # only for the bot (user modes)
@@ -72,6 +72,7 @@ def connect_callback(cli):
                             command=var.NICKSERV_IDENTIFY_COMMAND)
 
         channel.Main = channel.add(botconfig.CHANNEL, cli)
+        channel.Dummy = channel.add("*", cli)
 
         if botconfig.ALT_CHANNELS:
             alt_chans = botconfig.ALT_CHANNELS

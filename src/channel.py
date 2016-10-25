@@ -133,6 +133,9 @@ class Channel(IRCContext):
                     val = user.get(targets[i], allow_bot=True)
                     self.modes[c].add(val)
                     val.channels[self].add(c)
+                    if self is Main: # remove old modes from the dict if we give them back here
+                        if val in var.OLD_MODES:
+                            var.OLD_MODES[val].discard(c)
                     i += 1
 
                 elif c in list_modes:

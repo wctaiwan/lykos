@@ -3,6 +3,8 @@ Features = {"CASEMAPPING": "rfc1459", "CHARSET": "utf-8", "STATUSMSG": {"@", "+"
 def lower(nick):
     if nick is None:
         return None
+    if isinstance(nick, IRCContext):
+        return nick.lower()
 
     mapping = {
         "[": "{",

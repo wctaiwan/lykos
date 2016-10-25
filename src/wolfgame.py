@@ -123,7 +123,7 @@ if botconfig.DEBUG_MODE and var.DISABLE_DEBUG_MODE_TIME_LORD:
 
 plog("Loading Werewolf IRC bot")
 
-def connect_callback(cli):
+def connect_callback():
     db.init_vars()
     SIGUSR1 = getattr(signal, "SIGUSR1", None)
     SIGUSR2 = getattr(signal, "SIGUSR2", None)
