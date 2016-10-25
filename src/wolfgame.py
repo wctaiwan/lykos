@@ -587,7 +587,7 @@ def replace(var, source, target, message):
 @cmd("pingif", "pingme", "pingat", "pingpref", pm=True)
 def altpinger(var, source, target, message):
     """Pings you when the number of players reaches your preference. Usage: "pingif <players>". https://werewolf.chat/Pingif"""
-    players = is_user_altpinged(var, source)
+    players = source.get_pingif_count()
     rest = message.split()
 
     if not source.account and var.ACCOUNTS_ONLY:
@@ -607,7 +607,7 @@ def altpinger(var, source, target, message):
               len(rest) > 1 and rest[1].isdigit() and int(rest[1]) == 0)):
         if players:
             msg.append(messages["unset_pingif"].format(players))
-            toggle_altpinged_status(var, source, 0, players)
+            source.set_pingif_count(0, players)
         else:
             msg.append(messages["no_pingif"])
 
@@ -622,76 +622,15 @@ def altpinger(var, source, target, message):
             msg.append(messages["pingif_already_set"].format(num))
         elif players:
             msg.append(messages["pingif_change"].format(players, num))
-            toggle_altpinged_status(var, source, num, players)
+            source.set_pingif_count(num, players)
         else:
             msg.append(messages["set_pingif"].format(num))
-            toggle_altpinged_status(var, source, num)
+            source.set_pingif_count(num)
 
     else:
         msg.append(messages["pingif_invalid"])
 
     reply(source, target, "\n".join(msg), private=True)
-
-def is_user_altpinged(var, val):
-    temp = val.lower()
-    if not var.DISABLE_ACCOUNTS and temp.account is not None:
-        if temp.account in var.PING_IF_PREFS_ACCS:
-            return var.PING_IF_PREFS_ACCS[temp.account]
-
-    elif not var.ACCOUNTS_ONLY:
-        for hostmask, pref in var.PING_IF_PREFS.items():
-            if user.match_hostmask(hostmask, val):
-                return pref
-
-    return 0
-
-def toggle_altpinged_status(var, val, value, old=None):
-    temp = val.lower()
-
-    if not value:
-        if not var.DISABLE_ACCOUNTS and temp.account:
-            if temp.account in var.PING_IF_PREFS_ACCS:
-                del var.PING_IF_PREFS_ACCS[temp.account]
-                db.set_pingif(0, temp.account, None)
-                if old is not None:
-                    with var.WARNING_LOCK:
-                        if old in var.PING_IF_NUMS_ACCS:
-                            var.PING_IF_NUMS_ACCS[old].discard(temp.account)
-
-        if not var.ACCOUNTS_ONLY:
-            for hostmask in list(var.PING_IF_PREFS):
-                if user.match_hostmask(hostmask, temp):
-                    del var.PING_IF_PREFS[hostmask]
-                    db.set_pingif(0, None, hostmask)
-                    if old is not None:
-                        with var.WARNING_LOCK:
-                            if old in var.PING_IF_NUMS:
-                                var.PING_IF_NUMS[old].discard(hostmask)
-                                var.PING_IF_NUMS[old].discard(temp.host)
-
-    else:
-        if not var.DISABLE_ACCOUNTS and temp.account:
-            var.PING_IF_PREFS[temp.account] = value
-            db.set_pingif(value, temp.account, None)
-            with var.WARNING_LOCK:
-                if value not in var.PING_IF_NUMS_ACCS:
-                    var.PING_IF_NUMS_ACCS[value] = set()
-                var.PING_IF_NUMS_ACCS[value].add(temp.account)
-                if old is not None:
-                    if old in var.PING_IF_NUMS_ACCS:
-                        var.PING_IF_NUMS_ACCS[old].discard(temp.account)
-
-        elif not var.ACCOUNTS_ONLY:
-            var.PING_IF_PREFS[temp.userhost] = value
-            db.set_pingif(value, None, temp.userhost)
-            with var.WARNING_LOCK:
-                if value not in var.PING_IF_NUMS:
-                    var.PING_IF_NUMS[value] = set()
-                var.PING_IF_NUMS[value].add(temp.userhost)
-                if old is not None:
-                    if old in var.PING_IF_NUMS:
-                        var.PING_IF_NUMS[old].discard(temp.host)
-                        var.PING_IF_NUMS[old].discard(temp.userhost)
 
 @handle_error
 def join_timer_handler(var):
@@ -768,72 +707,64 @@ def join_timer_handler(var):
 
         hooks.who(channel.Main)
 
-def get_deadchat_pref(nick):
-    if nick in var.USERS:
-        host = var.USERS[nick]["host"].lower()
-        acc = irc_lower(var.USERS[nick]["account"])
-    else:
-        return False
-
-    if acc in var.DEADCHAT_PREFS_ACCS:
-        return False
-    elif var.ACCOUNTS_ONLY:
-        return True
-    elif host in var.DEADCHAT_PREFS:
-        return False
-
-    return True
-
-def join_deadchat(cli, *all_nicks):
+def join_deadchat(var, *all_users):
     if not var.ENABLE_DEADCHAT:
         return
 
-    if var.PHASE not in ("day", "night"):
+    if var.PHASE not in var.GAME_PHASES:
         return
 
-    nicks = []
-    pl = list_participants()
-    for nick in all_nicks:
-        if is_user_stasised(nick) or nick in pl or nick in var.DEADCHAT_PLAYERS:
-            continue
-        nicks.append(nick)
+    def can_join(val, pl=list_participants()):
+        return not val.stasis_count() and val not in pl and val not in var.DEADCHAT_PLAYERS
 
-    if not nicks:
+    users = list(filter(can_join, all_users))
+
+    if not users:
         return
 
-    if len(nicks) == 1:
-        msg = messages["player_joined_deadchat"].format(nicks[0])
-    elif len(nicks) == 2:
-        msg = messages["multiple_joined_deadchat"].format(*nicks)
+    if len(users) == 1:
+        msg = messages["player_joined_deadchat"].format(users[0].nick)
     else:
-        msg = messages["multiple_joined_deadchat"].format("\u0002, \u0002".join(nicks[:-1]), nicks[-1])
-    mass_privmsg(cli, var.DEADCHAT_PLAYERS, msg)
-    mass_privmsg(cli, var.SPECTATING_DEADCHAT, "[deadchat] " + msg)
-    mass_privmsg(cli, nicks, messages["joined_deadchat"])
+        msg = messages["multiple_joined_deadchat"].format("\u0002, \u0002".join([x.nick for x in users[:-1]]), users[-1].nick)
 
-    people = var.DEADCHAT_PLAYERS | set(nicks)
+    deadchat_people = messages["list_deadchat"].format(", ".join([x.nick for x in var.DEADCHAT_PLAYERS.union(users)]))
 
-    mass_privmsg(cli, nicks, messages["list_deadchat"].format(", ".join(people)))
-    var.DEADCHAT_PLAYERS.update(nicks)
-    var.SPECTATING_DEADCHAT.difference_update(nicks)
+    for val in var.DEADCHAT_PLAYERS:
+        val.queue_message(msg)
+    for val in var.SPECTATING_DEADCHAT:
+        val.queue_message("[deadchat] " + msg)
+    for val in users:
+        val.queue_message(messages["joined_deadchat"])
+        val.queue_message(deadchat_people)
 
-def leave_deadchat(cli, nick, force=""):
+        var.DEADCHAT_PLAYERS.add(val)
+        var.SPECTATING_DEADCHAT.discard(val)
+
+    val.send_messages() # val will hold the last user (since we have at least one)
+
+def leave_deadchat(var, val, force=""):
     if not var.ENABLE_DEADCHAT:
         return
 
-    if var.PHASE not in ("day", "night") or nick not in var.DEADCHAT_PLAYERS:
+    if var.PHASE not in var.GAME_PHASES or val not in var.DEADCHAT_PLAYERS:
         return
 
-    var.DEADCHAT_PLAYERS.remove(nick)
-    msg = ""
+    var.DEADCHAT_PLAYERS.remove(val)
+
     if force:
-        pm(cli, nick, messages["force_leave_deadchat"].format(force))
-        msg = messages["player_force_leave_deadchat"].format(nick, force)
+        val.send(messages["force_leave_deadchat"].format(force))
+        msg = messages["player_force_leave_deadchat"].format(val.nick, force)
+
     else:
-        pm(cli, nick, messages["leave_deadchat"])
-        msg = messages["player_left_deadchat"].format(nick)
-    mass_privmsg(cli, var.DEADCHAT_PLAYERS, msg)
-    mass_privmsg(cli, var.SPECTATING_DEADCHAT, "[deadchat] " + msg)
+        val.send(messages["leave_deadchat"])
+        msg = messages["player_left_deadchat"].format(val.nick)
+
+    for value in var.DEADCHAT_PLAYERS:
+        value.queue_message(msg)
+    for value in var.SPECTATING_DEADCHAT:
+        value.queue_message("[deadchat] " + msg)
+
+    val.send_messages()
 
 @cmd("deadchat", pm=True)
 def deadchat_pref(cli, nick, chan, rest):

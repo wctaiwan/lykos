@@ -8,31 +8,17 @@ import re
 
 import botconfig
 import src.settings as var
-from src import proxy, debuglog
+from src import proxy, channel, debuglog
 from src.messages import messages
 from src.events import Event
 
-__all__ = ["pm", "is_fake_nick", "reply",
-           "is_user_simple", "is_user_notice", "in_wolflist",
+__all__ = ["reply", "in_wolflist",
            "relay_wolfchat_command", "chk_nightdone", "chk_decision",
            "chk_win", "is_role", "plural", "singular", "list_players",
            "list_players_and_roles", "list_participants", "get_role", "get_roles",
            "get_reveal_role", "get_templates", "role_order", "break_long_message",
            "complete_match", "get_victim", "get_nick", "pastebin_tb",
            "InvalidModeException"]
-# message either privmsg or notice, depending on user settings
-def pm(cli, target, message):
-    if is_fake_nick(target) and botconfig.DEBUG_MODE:
-        debuglog("Would message fake nick {0}: {1!r}".format(target, message))
-        return
-
-    if is_user_notice(target):
-        cli.notice(target, message)
-        return
-
-    cli.msg(target, message)
-
-is_fake_nick = re.compile(r"^[0-9]+$").search
 
 # Decide how to reply to a user, depending on the channel / query it was called in, and whether a game is running and they are playing
 def reply(source, target, message, *, private=False, prefix_nick=False):
@@ -45,35 +31,6 @@ def reply(source, target, message, *, private=False, prefix_nick=False):
         target.send("{0}: {1}".format(source.nick, message))
     else:
         target.send(message)
-
-def is_user_simple(nick):
-    if nick in var.USERS:
-        ident = irc_lower(var.USERS[nick]["ident"])
-        host = var.USERS[nick]["host"].lower()
-        acc = irc_lower(var.USERS[nick]["account"])
-    else:
-        return False
-    if acc and acc != "*" and not var.DISABLE_ACCOUNTS:
-        if acc in var.SIMPLE_NOTIFY_ACCS:
-            return True
-        return False
-    elif not var.ACCOUNTS_ONLY:
-        for hostmask in var.SIMPLE_NOTIFY:
-            if match_hostmask(hostmask, nick, ident, host):
-                return True
-    return False
-
-def is_user_notice(nick):
-    if nick in var.USERS and var.USERS[nick]["account"] and var.USERS[nick]["account"] != "*" and not var.DISABLE_ACCOUNTS:
-        if irc_lower(var.USERS[nick]["account"]) in var.PREFER_NOTICE_ACCS:
-            return True
-    if nick in var.USERS and not var.ACCOUNTS_ONLY:
-        ident = irc_lower(var.USERS[nick]["ident"])
-        host = var.USERS[nick]["host"].lower()
-        for hostmask in var.PREFER_NOTICE:
-            if match_hostmask(hostmask, nick, ident, host):
-                return True
-    return False
 
 def in_wolflist(nick, who):
     myrole = get_role(nick)

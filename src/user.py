@@ -6,6 +6,7 @@ import re
 from src.context import IRCContext, Features, lower
 from src.logger import debuglog
 from src import settings as var
+from src import db
 
 import botconfig
 
@@ -163,16 +164,6 @@ def parse_rawnick_as_dict(rawnick, *, default=None):
 def equals(nick1, nick2):
     return lower(nick1) == lower(nick2)
 
-def match_hostmask(hostmask, user):
-    """Match n!u@h, u@h, or just h by itself."""
-
-    nick, ident, host = re.match("(?:(?:(.*?)!)?(.*?)@)?(.*)", hostmask).groups("")
-    temp = user.lower()
-
-    return (fnmatch.fnmatch(temp.nick, lower(nick)) and
-            fnmatch.fnmatch(temp.ident, lower(ident)) and
-            fnmatch.fnmatch(temp.host, lower(host)))
-
 class User(IRCContext):
 
     is_user = True
@@ -242,9 +233,136 @@ class User(IRCContext):
         return True
 
     def get_send_type(self, *, is_notice=False, is_privmsg=False):
-        if is_notice and not is_privmsg: # still to do
+        if is_privmsg:
+            return "PRIVMSG"
+        if is_notice:
+            return "NOTICE"
+        if self.prefers_notice():
             return "NOTICE"
         return "PRIVMSG"
+
+    def match_hostmask(self, hostmask):
+        """Match n!u@h, u@h, or just h by itself."""
+        nick, ident, host = re.match("(?:(?:(.*?)!)?(.*?)@)?(.*)", hostmask).groups("")
+        temp = self.lower()
+
+        return (fnmatch.fnmatch(temp.nick, lower(nick)) and
+                fnmatch.fnmatch(temp.ident, lower(ident)) and
+                fnmatch.fnmatch(temp.host, lower(host)))
+
+    def prefers_notice(self):
+        temp = self.lower()
+
+        if temp.account in var.PREFER_NOTICE_ACCS:
+            return True
+
+        if not var.ACCOUNTS_ONLY:
+            for hostmask in var.PREFER_NOTICE:
+                if temp.match_hostmask(hostmask):
+                    return True
+
+        return False
+
+    def prefers_simple(self):
+        temp = self.lower()
+
+        if temp.account in var.SIMPLE_NOTIFY_ACCS:
+            return True
+
+        if not var.ACCOUNTS_ONLY:
+            for hostmask in var.SIMPLE_NOTIFY:
+                if temp.match_hostmask(hostmask):
+                    return True
+
+        return False
+
+    def get_pingif_count(self):
+        temp = self.lower()
+
+        if not var.DISABLE_ACCOUNTS and temp.account is not None:
+            if temp.account in var.PING_IF_PREFS_ACCS:
+                return var.PING_IF_PREFS_ACCS[temp.account]
+
+        elif not var.ACCOUNTS_ONLY:
+            for hostmask, pref in var.PING_IF_PREFS.items():
+                if temp.match_hostmask(hostmask):
+                    return pref
+
+        return 0
+
+    def set_pingif_count(self, value, old=None):
+        temp = self.lower()
+
+        if not value:
+            if not var.DISABLE_ACCOUNTS and temp.account:
+                if temp.account in var.PING_IF_PREFS_ACCS:
+                    del var.PING_IF_PREFS_ACCS[temp.account]
+                    db.set_pingif(0, temp.account, None)
+                    if old is not None:
+                        with var.WARNING_LOCK:
+                            if old in var.PING_IF_NUMS_ACCS:
+                                var.PING_IF_NUMS_ACCS[old].discard(temp.account)
+
+            if not var.ACCOUNTS_ONLY:
+                for hostmask in list(var.PING_IF_PREFS):
+                    if temp.match_hostmask(hostmask):
+                        del var.PING_IF_PREFS[hostmask]
+                        db.set_pingif(0, None, hostmask)
+                        if old is not None:
+                            with var.WARNING_LOCK:
+                                if old in var.PING_IF_NUMS:
+                                    var.PING_IF_NUMS[old].discard(hostmask)
+                                    var.PING_IF_NUMS[old].discard(temp.host)
+
+        else:
+            if not var.DISABLE_ACCOUNTS and temp.account:
+                var.PING_IF_PREFS[temp.account] = value
+                db.set_pingif(value, temp.account, None)
+                with var.WARNING_LOCK:
+                    if value not in var.PING_IF_NUMS_ACCS:
+                        var.PING_IF_NUMS_ACCS[value] = set()
+                    var.PING_IF_NUMS_ACCS[value].add(temp.account)
+                    if old is not None:
+                        if old in var.PING_IF_NUMS_ACCS:
+                            var.PING_IF_NUMS_ACCS[old].discard(temp.account)
+
+            elif not var.ACCOUNTS_ONLY:
+                var.PING_IF_PREFS[temp.userhost] = value
+                db.set_pingif(value, None, temp.userhost)
+                with var.WARNING_LOCK:
+                    if value not in var.PING_IF_NUMS:
+                        var.PING_IF_NUMS[value] = set()
+                    var.PING_IF_NUMS[value].add(temp.userhost)
+                    if old is not None:
+                        if old in var.PING_IF_NUMS:
+                            var.PING_IF_NUMS[old].discard(temp.host)
+                            var.PING_IF_NUMS[old].discard(temp.userhost)
+
+    def wants_deadchat(self):
+        temp = self.lower()
+
+        if temp.account in var.DEADCHAT_PREFS_ACCS:
+            return False
+        elif var.ACCOUNTS_ONLY:
+            return True
+        elif temp.host in var.DEADCHAT_PREFS:
+            return False
+
+        return True
+
+    def stasis_count(self):
+        """Return the number of games the user is in stasis for."""
+        temp = self.lower()
+        amount = 0
+
+        if not var.DISABLE_ACCOUNTS:
+            amount = var.STASISED_ACCS.get(temp.account, 0)
+
+        for hostmask in var.STASISED:
+            if temp.match_hostmask(hostmask):
+                amount = max(amount, var.STASISED[hostmask])
+
+        return amount
 
     def queue_message(self, message):
         self._messages[message].append(self)
@@ -285,6 +403,8 @@ class User(IRCContext):
 
     @property
     def rawnick(self):
+        if self.nick is None or self.ident is None or self.host is None:
+            return None
         return "{self.nick}!{self.ident}@{self.host}".format(self=self)
 
     @rawnick.setter
@@ -293,6 +413,8 @@ class User(IRCContext):
 
     @property
     def userhost(self):
+        if self.ident is None or self.host is None:
+            return None
         return "{self.ident}@{self.host}".format(self=self)
 
     @userhost.setter
@@ -316,11 +438,3 @@ class FakeUser(User):
     @rawnick.setter
     def rawnick(self, rawnick):
         self.nick = parse_rawnick_as_dict(rawnick)["nick"]
-
-    @property
-    def userhost(self):
-        return "" # we don't have a userhost
-
-    @userhost.setter
-    def userhost(self, userhost):
-        pass # don't do anything

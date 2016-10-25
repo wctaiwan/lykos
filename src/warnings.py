@@ -9,36 +9,16 @@ from src.decorators import cmd
 from src.events import Event
 from src.messages import messages
 
-__all__ = ["is_user_stasised", "decrement_stasis", "parse_warning_target", "add_warning", "expire_tempbans"]
+__all__ = ["decrement_stasis", "parse_warning_target", "add_warning", "expire_tempbans"]
 
-def is_user_stasised(nick):
-    """Checks if a user is in stasis. Returns a number of games in stasis."""
-
-    if nick in var.USERS:
-        ident = irc_lower(var.USERS[nick]["ident"])
-        host = var.USERS[nick]["host"].lower()
-        acc = irc_lower(var.USERS[nick]["account"])
-    else:
-        return -1
-    amount = 0
-    if not var.DISABLE_ACCOUNTS and acc and acc != "*":
-        if acc in var.STASISED_ACCS:
-            amount = var.STASISED_ACCS[acc]
-    for hostmask in var.STASISED:
-        if match_hostmask(hostmask, nick, ident, host):
-           amount = max(amount, var.STASISED[hostmask])
-    return amount
-
-def decrement_stasis(nick=None):
-    if nick and nick in var.USERS:
-        ident = irc_lower(var.USERS[nick]["ident"])
-        host = var.USERS[nick]["host"].lower()
-        acc = irc_lower(var.USERS[nick]["account"])
+def decrement_stasis(val=None):
+    if val:
+        temp = val.lower()
         # decrement account stasis even if accounts are disabled
-        if acc in var.STASISED_ACCS:
-            db.decrement_stasis(acc=acc)
+        if temp.account in var.STASISED_ACCS:
+            db.decrement_stasis(acc=temp.account)
         for hostmask in var.STASISED:
-            if match_hostmask(hostmask, nick, ident, host):
+            if temp.match_hostmask(hostmask):
                 db.decrement_stasis(hostmask=hostmask)
     else:
         db.decrement_stasis()
