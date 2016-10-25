@@ -767,120 +767,102 @@ def leave_deadchat(var, val, force=""):
     val.send_messages()
 
 @cmd("deadchat", pm=True)
-def deadchat_pref(cli, nick, chan, rest):
-    """Toggles auto joining deadchat on death."""
+def deadchat_pref(var, source, target, message):
+    """Toggle auto joining deadchat on death."""
     if not var.ENABLE_DEADCHAT:
         return
 
-    if nick in var.USERS:
-        host = var.USERS[nick]["host"].lower()
-        acc = irc_lower(var.USERS[nick]["account"])
-    else:
-        reply(cli, nick, chan, messages["invalid_channel"].format(botconfig.CHANNEL), private=True)
+    temp = source.lower()
+
+    if not temp.account and var.ACCOUNTS_ONLY:
+        reply(source, target, messages["not_logged_in"], private=True)
         return
 
-    if (not acc or acc == "*") and var.ACCOUNTS_ONLY:
-        reply(cli, nick, chan, messages["not_logged_in"], private=True)
-        return
-
-    if acc and acc != "*":
-        value = acc
+    if temp.account:
+        value = temp.account
         variable = var.DEADCHAT_PREFS_ACCS
+
     else:
-        value = host
+        value = temp.host
         variable = var.DEADCHAT_PREFS
 
     if value in variable:
         msg = messages["chat_on_death"]
         variable.remove(value)
-        db.toggle_deadchat(acc, host)
+        db.toggle_deadchat(temp.account, temp.host)
 
     else:
         msg = messages["no_chat_on_death"]
         variable.add(value)
-        db.toggle_deadchat(acc, host)
+        db.toggle_deadchat(temp.account, temp.host)
 
-    reply(cli, nick, chan, msg, private=True)
+    reply(source, target, msg, private=True)
 
 @cmd("join", "j", pm=True)
-def join(cli, nick, chan, rest):
-    """Either starts a new game of Werewolf or joins an existing game that has not started yet."""
+def join(var, source, target, message):
+    """Either start a new game of Werewolf or join an existing game that has not started yet."""
     # keep this and the event in fjoin() in sync
     evt = Event("join", {
         "join_player": join_player,
         "join_deadchat": join_deadchat,
         "vote_gamemode": vote_gamemode
         })
-    if not evt.dispatch(cli, var, nick, chan, rest, forced=False):
+    if not evt.dispatch(var, source, target, message, forced=False):
         return
     if var.PHASE in ("none", "join"):
-        if chan == nick:
+        if not target.is_channel:
             return
         if var.ACCOUNTS_ONLY:
-            if nick in var.USERS and (not var.USERS[nick]["account"] or var.USERS[nick]["account"] == "*"):
-                cli.notice(nick, messages["not_logged_in"])
+            if not source.account:
+                source.send(messages["not_logged_in"], notice=True)
                 return
-        if evt.data["join_player"](cli, nick, chan) and rest:
-            evt.data["vote_gamemode"](cli, nick, chan, rest.lower().split()[0], False)
+        if evt.data["join_player"](var, source, target) and rest:
+            evt.data["vote_gamemode"](var, source, target, message.lower().split()[0], doreply=False)
 
     else: # join deadchat
-        if chan == nick and nick != botconfig.NICK:
-            evt.data["join_deadchat"](cli, nick)
+        if not target.is_channel:
+            evt.data["join_deadchat"](var, source)
 
-def join_player(cli, player, chan, who=None, forced=False, *, sanity=True):
-    if who is None:
-        who = player
+def join_player(var, player, chan, sender=None, forced=False, *, sanity=True):
+    if sender is None:
+        sender = player
 
     pl = list_players()
-    if chan != botconfig.CHANNEL:
+    if chan is not channel.Main:
         return False
 
-    if not var.OPPED:
-        cli.notice(who, messages["bot_not_opped"].format(chan))
-        if var.CHANSERV_OP_COMMAND:
-            cli.msg(var.CHANSERV, var.CHANSERV_OP_COMMAND.format(channel=botconfig.CHANNEL))
+    if user.Bot not in chan.modes[hooks.Features["PREFIX"]["@"]]:
+        sender.send(messages["bot_not_opped"].format(chan.name), notice=True)
+        if var.CHANSERV_OP_COMMAND and var.CHANSERV:
+            user.get(var.CHANSERV).send(var.CHANSERV_OP_COMMAND.format(channel=chan.name))
         return False
 
-    if player in var.USERS:
-        ident = irc_lower(var.USERS[player]["ident"])
-        host = var.USERS[player]["host"].lower()
-        acc = irc_lower(var.USERS[player]["account"])
-        hostmask = player + "!" + ident + "@" + host
-    elif is_fake_nick(player) and botconfig.DEBUG_MODE:
-        # fakenick
-        ident = None
-        host = None
-        acc = None
-        hostmask = None
-    else:
-        return False # Not normal
-    if not acc or acc == "*" or var.DISABLE_ACCOUNTS:
-        acc = None
+    stasis = player.stasis_count()
 
-    stasis = is_user_stasised(player)
-
-    if stasis > 0:
+    if stasis:
         if forced and stasis == 1:
             decrement_stasis(player)
         else:
-            cli.notice(who, messages["stasis"].format(
-                "you are" if player == who else player + " is", stasis,
-                "s" if stasis != 1 else ""))
+            sender.send(messages["stasis"].format(
+                "you are" if player is sender else player.nick + " is", stasis,
+                "s" if stasis > 1 else ""), notice=True)
             return False
 
     # don't check unacked warnings on fjoin
-    if who == player and db.has_unacknowledged_warnings(acc, hostmask):
-        cli.notice(player, messages["warn_unacked"])
+    if player is sender and db.has_unacknowledged_warnings(user.lower(player.account), user.lower(player.rawnick)):
+        player.send(messages["warn_unacked"], notice=True)
         return False
 
-    cmodes = [("+v", player)]
+    mode = hooks.Features["PREFIX"]["+"]
+    cmodes = [("+" + mode, player.nick)]
     if var.PHASE == "none":
-        if var.AUTO_TOGGLE_MODES and player in var.USERS and var.USERS[player]["modes"]:
-            for mode in var.USERS[player]["modes"]:
-                cmodes.append(("-"+mode, player))
-            var.USERS[player]["moded"].update(var.USERS[player]["modes"])
-            var.USERS[player]["modes"] = set()
-        mass_mode(cli, cmodes, [])
+        if var.AUTO_TOGGLE_MODES:
+            for mode in player.channels[chan]:
+                cmodes.append(("-" + mode, player.nick))
+                if player not in var.OLD_MODES:
+                    var.OLD_MODES[player] = set()
+                var.OLD_MODES[player].add(mode)
+        chan.mode(*cmodes)
         var.ROLES["person"].add(player)
         var.ALL_PLAYERS.append(player)
         var.PHASE = "join"
@@ -890,77 +872,77 @@ def join_player(cli, player, chan, who=None, forced=False, *, sanity=True):
         var.GAME_ID = time.time()
         var.PINGED_ALREADY_ACCS = set()
         var.PINGED_ALREADY = set()
-        if host:
-            var.JOINED_THIS_GAME.add(ident + "@" + host)
-        if acc:
-            var.JOINED_THIS_GAME_ACCS.add(acc)
+        if player.host:
+            var.JOINED_THIS_GAME.add(player.userhost)
+        if player.account:
+            var.JOINED_THIS_GAME_ACCS.add(player.account)
         var.CAN_START_TIME = datetime.now() + timedelta(seconds=var.MINIMUM_WAIT)
-        cli.msg(chan, messages["new_game"].format(player, botconfig.CMD_CHAR))
+        chan.send(messages["new_game"].format(player.nick, botconfig.CMD_CHAR))
 
         # Set join timer
         if var.JOIN_TIME_LIMIT > 0:
-            t = threading.Timer(var.JOIN_TIME_LIMIT, kill_join, [cli, chan])
+            t = threading.Timer(var.JOIN_TIME_LIMIT, kill_join, [chan])
             var.TIMERS["join"] = (t, time.time(), var.JOIN_TIME_LIMIT)
             t.daemon = True
             t.start()
 
     elif player in pl:
-        cli.notice(who, messages["already_playing"].format("You" if who == player else "They"))
+        sender.send(messages["already_playing"].format("You" if player is sender else "They"), notice=True)
         # if we're not doing insane stuff, return True so that one can use !join to vote for a game mode
         # even if they are already joined. If we ARE doing insane stuff, return False to indicate that
         # the player was not successfully joined by this call.
         return sanity
     elif len(pl) >= var.MAX_PLAYERS:
-        cli.notice(who, messages["too_many_players"])
+        sender.send(messages["too_many_players"], notice=True)
         return False
     elif sanity and var.PHASE != "join":
-        cli.notice(who, messages["game_already_running"])
+        sender.send(messages["game_already_running"], notice=True)
         return False
     else:
-        if acc is not None and not botconfig.DEBUG_MODE:
-            for user in pl:
-                if irc_lower(var.USERS[user]["account"]) == acc:
+        if player.account:
+            for val in pl:
+                if user.lower(val.account) == user.lower(player.account):
                     msg = messages["account_already_joined"]
-                    if who == player:
-                        cli.notice(who, msg.format(user, "your", messages["join_swap_instead"].format(botconfig.CMD_CHAR)))
+                    if player is sender:
+                        sender.send(msg.format(user, "your", messages["join_swap_instead"].format(botconfig.CMD_CHAR)), notice=True)
                     else:
-                        cli.notice(who, msg.format(user, "their", ""))
+                        sender.send(msg.format(user, "their", ""), notice=True)
                     return
 
         var.ALL_PLAYERS.append(player)
-        if not is_fake_nick(player) or not botconfig.DEBUG_MODE:
-            if var.AUTO_TOGGLE_MODES and var.USERS[player]["modes"]:
-                for mode in var.USERS[player]["modes"]:
-                    cmodes.append(("-"+mode, player))
-                var.USERS[player]["moded"].update(var.USERS[player]["modes"])
-                var.USERS[player]["modes"] = set()
-            mass_mode(cli, cmodes, [])
-            cli.msg(chan, messages["player_joined"].format(player, len(pl) + 1))
+        if var.AUTO_TOGGLE_MODES:
+            for mode in player.channels[chan]:
+                cmodes.append(("-" + mode, player.nick))
+                if player not in var.OLD_MODES:
+                    var.OLD_MODES[player] = set()
+                var.OLD_MODES[player].add(mode)
+        chan.mode(*cmodes)
+        chan.send(messages["player_joined"].format(player.nick, len(pl) + 1))
         if not sanity:
             # Abandon Hope All Ye Who Enter Here
-            leave_deadchat(cli, player)
+            leave_deadchat(var, player)
             var.SPECTATING_DEADCHAT.discard(player)
             var.SPECTATING_WOLFCHAT.discard(player)
             return True
         var.ROLES["person"].add(player)
-        if not is_fake_nick(player):
-            hostmask = ident + "@" + host
-            if hostmask not in var.JOINED_THIS_GAME and (not acc or acc not in var.JOINED_THIS_GAME_ACCS):
-                # make sure this only happens once
-                var.JOINED_THIS_GAME.add(hostmask)
-                if acc:
-                    var.JOINED_THIS_GAME_ACCS.add(acc)
-                now = datetime.now()
 
-                # add var.EXTRA_WAIT_JOIN to wait time
-                if now > var.CAN_START_TIME:
-                    var.CAN_START_TIME = now + timedelta(seconds=var.EXTRA_WAIT_JOIN)
-                else:
-                    var.CAN_START_TIME += timedelta(seconds=var.EXTRA_WAIT_JOIN)
+        if player.userhost is not None and player.userhost not in var.JOINED_THIS_GAME and player.account not in var.JOINED_THIS_GAME_ACCS:
 
-                # make sure there's at least var.WAIT_AFTER_JOIN seconds of wait time left, if not add them
-                if now + timedelta(seconds=var.WAIT_AFTER_JOIN) > var.CAN_START_TIME:
-                    var.CAN_START_TIME = now + timedelta(seconds=var.WAIT_AFTER_JOIN)
+            # make sure this only happens once
+            var.JOINED_THIS_GAME.add(player.userhost)
+            if player.account:
+                var.JOINED_THIS_GAME_ACCS.add(player.account)
+            now = datetime.now()
+
+            # add var.EXTRA_WAIT_JOIN to wait time
+            if now > var.CAN_START_TIME:
+                var.CAN_START_TIME = now + timedelta(seconds=var.EXTRA_WAIT_JOIN)
+            else:
+                var.CAN_START_TIME += timedelta(seconds=var.EXTRA_WAIT_JOIN)
+
+            # make sure there's at least var.WAIT_AFTER_JOIN seconds of wait time left, if not add them
+            if now + timedelta(seconds=var.WAIT_AFTER_JOIN) > var.CAN_START_TIME:
+                var.CAN_START_TIME = now + timedelta(seconds=var.WAIT_AFTER_JOIN)
 
         var.LAST_STATS = None # reset
         var.LAST_GSTATS = None
@@ -979,80 +961,90 @@ def join_player(cli, player, chan, who=None, forced=False, *, sanity=True):
     return True
 
 @handle_error
-def kill_join(cli, chan):
-    pl = list_players()
-    pl.sort(key=lambda x: x.lower())
+def kill_join(chan):
+    pl = [x.nick for x in list_players()]
+    pl.sort(key=lambda x: user.lower(x))
     msg = "PING! " + break_long_message(pl).replace("\n", "\nPING! ")
-    reset_modes_timers(cli)
+    reset_modes_timers()
     reset()
-    cli.msg(chan, msg)
-    cli.msg(chan, messages["game_idle_cancel"])
+    chan.send(msg)
+    chan.send(messages["game_idle_cancel"])
     # use this opportunity to expire pending stasis
     db.expire_stasis()
     db.init_vars()
-    expire_tempbans(cli)
+    expire_tempbans()
     if var.AFTER_FLASTGAME is not None:
         var.AFTER_FLASTGAME()
         var.AFTER_FLASTGAME = None
 
 
 @cmd("fjoin", flag="A")
-def fjoin(cli, nick, chan, rest):
-    """Forces someone to join a game."""
-    # keep this and the event in def join() in sync
+def fjoin(var, source, target, message):
+    """Force someone to join a game."""
+    # keep this and the event in join() in sync
     evt = Event("join", {
         "join_player": join_player,
         "join_deadchat": join_deadchat,
         "vote_gamemode": vote_gamemode
         })
-    if not evt.dispatch(cli, var, nick, chan, rest, forced=True):
+    if not evt.dispatch(var, source, target, message, forced=True):
         return
     noticed = False
     fake = False
-    if not var.OPPED:
-        cli.notice(nick, messages["bot_not_opped"].format(chan))
-        if var.CHANSERV_OP_COMMAND:
-            cli.msg(var.CHANSERV, var.CHANSERV_OP_COMMAND.format(channel=botconfig.CHANNEL))
+    if user.Bot not in channel.Main.modes[hooks.Features["PREFIX"]["@"]]:
+        source.send(messages["bot_not_opped"].format(channel.Main.name), notice=True)
+        if var.CHANSERV_OP_COMMAND and var.CHANSERV:
+            user.get(var.CHANSERV).send(var.CHANSERV_OP_COMMAND.format(channel=channel.Main.name))
         return
-    if not rest.strip():
-        evt.data["join_player"](cli, nick, chan, forced=True)
+    if not message.strip():
+        evt.data["join_player"](var, source, target, forced=True)
 
-    for tojoin in re.split(" +",rest):
+    for tojoin in re.split(" +", message):
         tojoin = tojoin.strip()
         if "-" in tojoin:
             first, hyphen, last = tojoin.partition("-")
             if first.isdigit() and last.isdigit():
                 if int(last)+1 - int(first) > var.MAX_PLAYERS - len(list_players()):
-                    cli.msg(chan, messages["too_many_players_to_join"].format(nick))
+                    target.send(messages["too_many_players_to_join"].format(source.nick))
                     break
                 fake = True
                 for i in range(int(first), int(last)+1):
-                    evt.data["join_player"](cli, str(i), chan, forced=True, who=nick)
+                    fake_user = user.get(str(i), allow_none=True)
+                    if fake_user is None:
+                        fake_user = user.add(source.client, nick=str(i), channels={channel.Dummy: set()})
+                    channel.Dummy.users.add(fake_user)
+                    evt.data["join_player"](var, fake_user, target, forced=True, sender=source)
                 continue
+
         if not tojoin:
             continue
-        ul = list(var.USERS.keys())
-        ull = [u.lower() for u in ul]
-        if tojoin.lower() not in ull or not var.USERS[ul[ull.index(tojoin.lower())]]["inchan"]:
-            if not is_fake_nick(tojoin) or not botconfig.DEBUG_MODE:
-                if not noticed:  # important
-                    cli.msg(chan, nick+messages["fjoin_in_chan"])
-                    noticed = True
-                continue
-        if not is_fake_nick(tojoin):
-            tojoin = ul[ull.index(tojoin.lower())].strip()
-            if not botconfig.DEBUG_MODE and var.ACCOUNTS_ONLY:
-                if not var.USERS[tojoin]["account"] or var.USERS[tojoin]["account"] == "*":
-                    cli.notice(nick, messages["account_not_logged_in"].format(tojoin))
-                    return
-        elif botconfig.DEBUG_MODE:
-            fake = True
-        if tojoin != botconfig.NICK:
-            evt.data["join_player"](cli, tojoin, chan, forced=True, who=nick)
+
+        for val in user.all_users:
+            if user.equals(tojoin, val.nick) and target in val.channels:
+                break
         else:
-            cli.notice(nick, messages["not_allowed"])
+            if not noticed:
+                target.send(messages["fjoin_in_chan"].format(source.nick))
+                continue
+
+        player = user.get(tojoin, allow_none=True, allow_bot=True)
+        if player is None:
+            player = user.add(source.client, nick=tojoin)
+        if not player.is_fake:
+            if var.ACCOUNTS_ONLY and not player.account:
+                source.send(messages["account_not_logged_in"].format(tojoin), notice=True)
+                return
+
+        else:
+            fake = True
+
+        if player is not user.Bot:
+            evt.data["join_player"](var, player, target, forced=True, sender=source)
+        else:
+            source.send(messages["not_allowed"], notice=True)
+
     if fake:
-        cli.msg(chan, messages["fjoin_success"].format(nick, len(list_players())))
+        target.send(messages["fjoin_success"].format(source.nick, len(list_players())))
 
 @cmd("fleave", "fquit", flag="A", pm=True, phases=("join", "day", "night"))
 def fleave(cli, nick, chan, rest):
