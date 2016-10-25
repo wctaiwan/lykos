@@ -7101,24 +7101,21 @@ before_debug_mode_commands = list(COMMANDS.keys())
 if botconfig.DEBUG_MODE or botconfig.ALLOWED_NORMAL_MODE_COMMANDS:
 
     @cmd("eval", owner_only=True, pm=True)
-    def pyeval(cli, nick, chan, rest):
+    def pyeval(var, source, target, message):
         """Evaluate a Python expression."""
         try:
-            a = str(eval(rest))
-            if len(a) < 500:
-                cli.msg(chan, a)
-            else:
-                cli.msg(chan, a[:500])
+            a = str(eval(message))
+            reply(source, target, a)
         except Exception as e:
-            cli.msg(chan, str(type(e))+":"+str(e))
+            reply(source, target, repr(e))
 
     @cmd("exec", owner_only=True, pm=True)
-    def py(cli, nick, chan, rest):
+    def pyexec(var, source, target, message):
         """Execute arbitrary Python code."""
         try:
-            exec(rest)
+            exec(message)
         except Exception as e:
-            cli.msg(chan, str(type(e))+":"+str(e))
+            reply(source, target, repr(e))
 
     @cmd("revealroles", flag="a", pm=True, phases=("day", "night"))
     def revealroles(cli, nick, chan, rest):
