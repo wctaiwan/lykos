@@ -192,7 +192,7 @@ class User(IRCContext):
         return "{self.__class__.__name__}: {self.nick}!{self.ident}@{self.host}#{self.realname}:{self.account}".format(self=self)
 
     def __repr__(self):
-        return "{self.__class__.__name__}({self.nick}, {self.ident}, {self.host}, {self.realname}, {self.account}, {self.channels})".format(self=self)
+        return "{self.__class__.__name__}({self.nick!r}, {self.ident!r}, {self.host!r}, {self.realname!r}, {self.account!r}, {self.channels!r})".format(self=self)
 
     def lower(self):
         return type(self)(self.client, lower(self.nick), lower(self.ident), lower(self.host), lower(self.realname), lower(self.account), channels, ref=(self.ref or self))

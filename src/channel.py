@@ -63,10 +63,10 @@ class Channel(IRCContext):
         self.timestamp = None
 
     def __str__(self):
-        return "{self.__class__.__name__}: {self.name} ({_states[self.state]})".format(self=self)
+        return "{self.__class__.__name__}: {self.name} ({0})".format(_states[self.state], self=self)
 
     def __repr__(self):
-        return "{self.__class__.__name__}({self.name})".format(self=self)
+        return "{self.__class__.__name__}({self.name!r})".format(self=self)
 
     def join(self, key=""):
         if self.state in (0, 4):
