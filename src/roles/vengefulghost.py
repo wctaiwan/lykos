@@ -16,7 +16,7 @@ GHOSTS = {} # type: Dict[str, str]
 # as such, no need to track nick changes, etc. with it
 drivenoff = {} # type: Dict[str, str]
 
-@cmd("kill", chan=False, pm=True, playing=False, silenced=True, phases=("night",), nicks=GHOSTS)
+@cmd("kill", chan=False, pm=True, playing=False, silenced=True, phases=("night",), users=GHOSTS)
 def vg_kill(cli, nick, chan, rest):
     """Take revenge on someone each night after you die."""
     if GHOSTS[nick][0] == "!":

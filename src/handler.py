@@ -18,6 +18,7 @@ def on_privmsg(cli, rawnick, chan, msg, *, notice=False):
                     (user.equals(chan, user.Bot.nick) and not botconfig.ALLOW_PRIVATE_NOTICE_COMMANDS))):
         return  # not allowed in settings
 
+    # Note that we don't allow the bot to message itself
     source = user.get(rawnick, raw_nick=True, allow_none=True)
 
     if source is None:
@@ -60,7 +61,7 @@ def connect_callback(cli):
         # This callback only sets up event listeners
         wolfgame.connect_callback(cli)
 
-        user.Bot = user.User(botconfig.NICK, None, None, None, None, {})
+        user.Bot = user.User(cli, botconfig.NICK, None, None, None, None, {})
         user.Bot.modes = set() # only for the bot (user modes)
 
         # just in case we haven't managed to successfully auth yet
@@ -69,8 +70,6 @@ def connect_callback(cli):
                             botconfig.PASS,
                             nickserv=var.NICKSERV,
                             command=var.NICKSERV_IDENTIFY_COMMAND)
-
-        cli.encoding = hooks.Features["CHARSET"] # inject the encoding in the client
 
         channel.Main = channel.add(botconfig.CHANNEL, cli)
 
@@ -97,7 +96,7 @@ def connect_callback(cli):
             hooks.bare_who(cli, var.NICKSERV)
 
         auto_toggle_modes = set(var.AUTO_TOGGLE_MODES)
-        var.AUTO_TOGGLE_MODES.clear()
+        var.AUTO_TOGGLE_MODES = set()
         for mode in auto_toggle_modes:
             if mode in hooks.Features["PREFIX"]:
                 mode = hooks.Features["PREFIX"][mode]

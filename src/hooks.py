@@ -6,8 +6,6 @@ further in the relevant hook functions.
 
 """
 
-import time
-
 from src.decorators import hook
 from src.context import Features
 from src.events import Event
@@ -16,8 +14,6 @@ from src.logger import plog
 from src import channel, user, settings as var
 
 ### WHO/WHOX requests and responses handling
-
-# Always use this function whenever sending out a WHO request!
 
 def bare_who(cli, target, data=b""):
     """Handle WHO requests."""
@@ -33,12 +29,14 @@ def bare_who(cli, target, data=b""):
     if len(data) > 3:
         data = b""
 
-    if Features["WHOX"]:
+    if "WHOX" in Features:
         cli.send("WHO", target, b"%tcuihsnfdlar," + data)
     else:
         cli.send("WHO", target)
 
     return int.from_bytes(data, "little")
+
+# Always use this function whenever sending out a WHO request!
 
 def who(target, data=b""):
     """Send a WHO request with respect to the server's capabilities.
@@ -83,7 +81,6 @@ def who_reply(cli, bot_server, bot_nick, chan, ident, host, server, nick, status
     # We also don't directly pass which modes they have, since that's already on the channel/user
     is_away = ("G" in status)
 
-    ch = None
     modes = {Features["PREFIX"].get(s) for s in status} - {None}
 
     if nick == bot_nick:
@@ -150,9 +147,8 @@ def extended_who_reply(cli, bot_server, bot_nick, data, chan, ident, ip_address,
     idle = int(idle)
     is_away = ("G" in status)
 
-    data = int.from_bytes(3, data.encode(Features["CHARSET"]), "little")
+    data = int.from_bytes(data.encode(Features["CHARSET"]), "little")
 
-    ch = None
     modes = {Features["PREFIX"].get(s) for s in status} - {None}
 
     if nick == bot_nick:
@@ -242,11 +238,12 @@ def get_features(cli, rawnick, *features):
                         settings = param
 
                     for setting in settings:
-                        if value.isdigit():
-                            value = int(value)
-                        elif not value:
-                            value = None
-                        Features[name][setting] = value
+                        res = value
+                        if res.isdigit():
+                            res = int(res)
+                        elif not res:
+                            res = None
+                        Features[name][setting] = res
 
             elif "(" in data and ")" in data:
                 gen = (x for y in data.split("(") for x in y.split(")") if x)
@@ -265,7 +262,7 @@ def get_features(cli, rawnick, *features):
                 Features[name] = data
 
         else:
-            Features[name] = None
+            Features[feature] = None
 
 ### Channel and user MODE handling
 
@@ -534,18 +531,22 @@ def join_chan(cli, rawnick, chan, account=None, realname=None):
         realname = None
 
     ch = channel.add(chan, cli)
-    val = user.get(rawnick, account=account, realname=realname, allow_none=True, raw_nick=True)
-    if val is user.Bot:
-        ch.state = 2
+    ch.state = 2
+
+    if user.parse_rawnick_as_dict(rawnick)["nick"] == user.Bot.nick: # we may not be fully set up yet
         ch.mode()
         ch.mode(Features["CHANMODES"][0])
         who(ch)
+        val = user.Bot
 
-    elif val is None:
-        val = user.add(nick=rawnick, account=account, realname=realname, raw_nick=True)
+    else:
+        try:
+            val = user.get(rawnick, account=account, realname=realname, raw_nick=True)
+        except KeyError:
+            val = user.add(cli, nick=rawnick, account=account, realname=realname, raw_nick=True)
 
-    ch.users.add(val)
-    val.channels[ch] = set()
+        ch.users.add(val)
+        val.channels[ch] = set()
 
     Event("chan_join", {}).dispatch(var, ch, val)
 

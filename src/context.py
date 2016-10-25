@@ -1,4 +1,4 @@
-Features = {"CASEMAPPING": "rfc1459", "CHARSET": "utf-8", "STATUSMSG": "@+"} # IRC server features (these are defaults)
+Features = {"CASEMAPPING": "rfc1459", "CHARSET": "utf-8", "STATUSMSG": {"@", "+"}, "CHANTYPES": {"#"}} # IRC server features (these are defaults)
 
 def lower(nick):
     if nick is None:
@@ -48,7 +48,8 @@ class IRCContext:
         # 2 (1) - The space between the command and the target
         # 2 (1) - The space between the target and the data
         # 3 (1) - The colon at the front of the data to send
-        length = 0x200 - 4
+        # 4 (3) - I don't know why, but we need 3 more/less characters
+        length = 0x200 - 7
         # Next, we need to reduce the length to account for our address
         length -= len(full_address)
         # Then we also need to account for the target's length
