@@ -68,7 +68,7 @@ class SecretHitlerMode(GameMode):
 
         # Can't do this stuff in here because if an admin uses !fgame shitler, startup() is called immediately
         #pl = get_players()
-        #self.president_ineligible = len(pl) >= 7
+        #self.president_ineligible = len(pl) >= 6
         #self.president_candidates = copy.copy(pl)
         #self.president = random.choice(self.president_candidates)
         #self.presidential_index = pl.index(self.president)
@@ -149,7 +149,7 @@ class SecretHitlerMode(GameMode):
     def startup_hack_PLS_IGNORE(self, evt, var, chk_win_conditions, villagers):
         pl = get_players()
 
-        self.president_ineligible = len(pl) >= 7
+        self.president_ineligible = len(pl) >= 6
         self.president_candidates = UserList(pl)
         self.president = random.choice(self.president_candidates)
         self.presidential_index = pl.index(self.president)
@@ -306,8 +306,11 @@ class SecretHitlerMode(GameMode):
 
             # It's now night, update ineligible chancellor list for the next day
             self.cannot_nominate = UserList([self.chancellor])
-            if self.president_ineligible:
+            if len(get_players()) >= 6:
+                self.president_ineligible = True
                 self.cannot_nominate.append(self.president)
+            else:
+                self.president_ineligible = False
 
     def prolong_night(self, evt, var):
         if not self.has_enacted:
