@@ -306,11 +306,8 @@ class SecretHitlerMode(GameMode):
 
             # It's now night, update ineligible chancellor list for the next day
             self.cannot_nominate = UserList([self.chancellor])
-            if len(get_players()) >= 6:
-                self.president_ineligible = True
+            if self.president_ineligible:
                 self.cannot_nominate.append(self.president)
-            else:
-                self.president_ineligible = False
 
     def prolong_night(self, evt, var):
         if not self.has_enacted:
@@ -393,6 +390,8 @@ class SecretHitlerMode(GameMode):
         if index <= self.presidential_index:
             self.presidential_index = self.presidential_index - 1
         self.president_candidates.remove(player)
+        
+        self.president_ineligible = len(get_players()) >= 6
 
         # Things past this point are only for handling idlers and people who leave mid-game
         if death_triggers:
